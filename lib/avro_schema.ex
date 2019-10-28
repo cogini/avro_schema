@@ -232,7 +232,24 @@ defmodule AvroSchema do
   end
 
   @spec get_full_name(tuple) :: binary
-  def get_full_name({:avro_record_type, _, _, _, _, _, full_name, _}), do: full_name
+  def get_full_name({:avro_record_type, _, _, _, _, _, full_name, _}) do
+    to_string(full_name)
+  end
+
+  @doc """
+  Inject cache entry for ref and schema.
+
+  This is normally used to inject extra fingerprint entries.
+  """
+  @spec cache_schema(ref, binary | avro.avro_type, boolean) :: :ok | :error | {:error, term}
+  def cache_schema(ref, schema, persistent \\ true) do
+    case process_schema(schema) do
+      {:ok, entry} ->
+        cache_insert(ref, entry, persistent)
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 
   # GenServer callbacks
 
@@ -343,16 +360,19 @@ defmodule AvroSchema do
     end
   end
 
-  @spec process_schema(binary) :: {:ok, map} | {:error, term}
+  @spec process_schema(binary | :avro.type) :: {:ok, map} | {:error, term}
   defp process_schema(schema) when is_binary(schema) do
     case parse_schema(schema) do
       {:ok, parsed} ->
-        encoder = :avro.make_simple_encoder(schema, [])
-        decoder = :avro.make_simple_decoder(schema, [])
-        %{schema: parsed, encoder: encoder, decoder: decoder}
+        process_schema(parsed)
       {:error, reason} ->
         {:error, {:parse_schema, reason}}
     end
+  end
+  defp process_schema(schema) do
+    encoder = :avro.make_simple_encoder(schema, [])
+    decoder = :avro.make_simple_decoder(schema, [])
+    %{schema: parsed, encoder: encoder, decoder: decoder}
   end
 
   @doc "Register schema"
