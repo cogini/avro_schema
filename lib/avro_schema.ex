@@ -205,7 +205,10 @@ defmodule AvroSchema do
 
   @doc "Make registration subject from name + fingerprint."
   @spec make_subject({binary, binary}) :: binary
-  def make_subject({name, fp}) when is_binary(fp), do: "#{name}-#{fp}"
+  def make_subject({name, fp}) when is_binary(fp) do
+    fp_hex = Base.encode16(fp, case: :lower)
+    "#{name}-#{fp_hex}"
+  end
 
   @doc "Make registration subject from name + fingerprint."
   @spec make_subject(binary, binary) :: binary
@@ -231,24 +234,34 @@ defmodule AvroSchema do
     DateTime.to_unix(date_time, :microsecond)
   end
 
-  @spec get_full_name(tuple) :: binary
-  def get_full_name({:avro_record_type, _, _, _, _, _, full_name, _}) do
+  @spec full_name(tuple) :: binary
+  def full_name({:avro_record_type, _, _, _, _, _, full_name, _}) do
     to_string(full_name)
   end
 
   @doc """
   Inject cache entry for ref and schema.
 
-  This is normally used to inject extra fingerprint entries.
+  This is useful when you have multiple fingerprints for the same schema,
+  e.g. due to whitespace differences
   """
-  @spec cache_schema(ref, binary | avro.avro_type, boolean) :: :ok | :error | {:error, term}
-  def cache_schema(ref, schema, persistent \\ true) do
+  @spec cache_schema(list(ref), binary, boolean) :: :ok | {:error, term}
+  def cache_schema(refs, schema, persistent \\ true)
+  def cache_schema(refs, schema, persistent) when is_binary(schema) do
     case process_schema(schema) do
       {:ok, entry} ->
-        cache_insert(ref, entry, persistent)
+        for ref <- refs do
+          # Logger.debug("cache_schema: #{inspect ref}")
+          cache_insert(ref, entry, persistent)
+        end
+        :ok
       {:error, reason} ->
         {:error, reason}
     end
+  end
+  @spec cache_schema(ref, binary, boolean) :: :ok | {:error, term}
+  def cache_schema(ref, schema, persistent) when is_binary(schema) do
+    cache_schema([ref], schema, persistent)
   end
 
   # GenServer callbacks
@@ -267,10 +280,12 @@ defmodule AvroSchema do
 
   @impl true
   def init(args) do
+    Logger.info("init: #{inspect args}")
     refresh_cycle = (args[:refresh_cycle] || 60) * 1000
     ttl = args[:ttl] || 3600
     cache_dir = args[:cache_dir]
     persistent = if cache_dir, do: true, else: false
+    client = ConfluentSchemaRegistry.client(args[:client] || [])
 
     # Logger.info("Starting with refresh cycle #{refresh_cycle}")
 
@@ -284,6 +299,7 @@ defmodule AvroSchema do
       refresh_cycle: refresh_cycle,
       ttl: ttl,
       persistent: persistent,
+      client: client,
       ref: :erlang.start_timer(refresh_cycle, self(), :refresh)
     }
 
@@ -369,10 +385,10 @@ defmodule AvroSchema do
         {:error, {:parse_schema, reason}}
     end
   end
-  defp process_schema(schema) do
+  defpprocess_schema(schema) do
     encoder = :avro.make_simple_encoder(schema, [])
     decoder = :avro.make_simple_decoder(schema, [])
-    %{schema: parsed, encoder: encoder, decoder: decoder}
+    {:ok, %{schema: schema, encoder: encoder, decoder: decoder}}
   end
 
   @doc "Register schema"
@@ -400,6 +416,7 @@ defmodule AvroSchema do
     catch
       # This may fail if clients make calls before the table is created
       :error, :badarg ->
+        Logger.error("badarg")
         nil
     end
   end
@@ -409,18 +426,20 @@ defmodule AvroSchema do
   # Run function and cache results if successful
   @spec cache_apply(term, fun, list(any), boolean) :: any
   defp cache_apply(key, fun, args, persistent) do
-      case cache_lookup(key) do
-        nil ->
-          case apply(fun, args) do
-            {:ok, result} ->
-              cache_insert(key, result, persistent)
-              {:ok, result}
-            error ->
-              error
-          end
-        value ->
-          {:ok, value}
-      end
+    case cache_lookup(key) do
+      nil ->
+        # Logger.debug("cache_apply: #{inspect key} not found")
+        case apply(fun, args) do
+          {:ok, result} ->
+            cache_insert(key, result, persistent)
+            {:ok, result}
+          error ->
+            error
+        end
+      value ->
+        # Logger.debug("cache_apply: #{inspect key} #{inspect value}")
+        {:ok, value}
+    end
   end
 
   # Insert into ETS and optionally DETS
@@ -437,7 +456,8 @@ defmodule AvroSchema do
   # Put value in ETS cache
   @spec ets_insert(term, term) :: :ok | :error
   defp ets_insert(key, value) do
-    # Logger.debug("ETS #{inspect key} = #{inspect value}")
+    # Logger.debug("ETS insert #{inspect key} = #{inspect value}")
+    # Logger.debug("ETS insert #{inspect key}")
 
     try do
       :ets.insert(@ets_table, {key, value})
@@ -451,7 +471,8 @@ defmodule AvroSchema do
   # Put value in DETS cache
   @spec dets_insert(term, term) :: :ok | :error
   defp dets_insert(key, value) do
-    # Logger.debug("DETS #{inspect key} = #{inspect value}")
+    # Logger.debug("DETS insert #{inspect key} = #{inspect value}")
+    # Logger.debug("DETS insert #{inspect key}")
 
     try do
       # DETS insert succeeds even if there is no table open :-/
