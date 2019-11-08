@@ -446,10 +446,10 @@ defmodule AvroSchema do
       {full_name, AvroSchema.create_fingerprint(bin)}
     end
 
-    alias_refs = Enum.map(subject_aliases[full_name] || [],
-      fn fp when is_binary(fp) -> {full_name, fp}
-        {_name, _fp} = a -> a
-      end)
+    aliases = subject_aliases[full_name] || []
+    alias_refs = Enum.map(aliases, fn fp when is_binary(fp) -> {full_name, fp}
+      {_name, _fp} = a -> a
+    end)
 
     refs = Enum.uniq([primary_ref] ++ intermediate_refs ++ alias_refs)
 
@@ -485,7 +485,7 @@ defmodule AvroSchema do
 
   @impl GenServer
   def init(args) do
-    Logger.info("init: #{inspect args}")
+    # Logger.info("init: #{inspect args}")
     cache_dir = args[:cache_dir]
     persistent = if cache_dir, do: true, else: false
     client = ConfluentSchemaRegistry.client(args[:client] || [])
@@ -516,7 +516,7 @@ defmodule AvroSchema do
           {:error, reason} ->
             Logger.error("Error loading data from DETS table #{path}: #{inspect reason}")
           _ ->
-            Logger.debug("Initialized ETS cache from DETS table #{path}")
+            # Logger.debug("Initialized ETS cache from DETS table #{path}")
         end
     end
     :ok

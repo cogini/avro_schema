@@ -128,13 +128,13 @@ defmodule AvroSchemaTest do
 
   test "register_schema", %{schema_json: schema_json} do
     full_name = AvroSchema.full_name(schema_json)
-    :ok = AvroSchema.cache_registration(full_name, schema_json, 1, schema_json, true)
+    :ok = AvroSchema.cache_registration(full_name, schema_json, 1, true)
     {:ok, 1} = AvroSchema.register_schema(full_name, schema_json)
   end
 
   test "to_timestamp" do
     timestamp = ~U[2019-11-08 06:54:24.234207Z]
-    assert 1573196064234207 == AvroSchema.to_timestamp(timestamp)
+    assert 1_573_196_064_234_207 == AvroSchema.to_timestamp(timestamp)
   end
 
   test "get_schema_files", %{schema_json: schema_json} do
@@ -142,7 +142,7 @@ defmodule AvroSchemaTest do
     assert files == ["test/schemas/test.avsc"]
 
     for file <- files do
-      {:ok, _refs} = AvroSchema.cache_schema_file(file, true)
+      {:ok, _refs} = AvroSchema.cache_schema_file(file)
     end
 
     {:ok, raw} = File.read("test/schemas/test.avsc")
@@ -153,11 +153,19 @@ defmodule AvroSchemaTest do
     assert {:ok, schema} == AvroSchema.get_schema({full_name, fp})
   end
 
-  # @tag :schema_registry
-  # test "interact with schema registry", %{schema_json: schema_json} do
-  #   # get_schema
-  #   # register schema
-  # end
+  @tag :live_registry
+  test "really interact with schema registry" do
 
-  # {:error, {:confluent_schema_registry, 0, :econnrefused}}
+    schema_json = "{\"name\":\"avro_schema\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
+    {:ok, schema} = AvroSchema.parse_schema(schema_json)
+    full_name = AvroSchema.full_name(schema)
+
+    assert {:ok, 61} == AvroSchema.register_schema(full_name, schema_json)
+    assert {:ok, schema} == AvroSchema.get_schema(61)
+
+    {:error, {:confluent_schema_registry, 404, result}} = AvroSchema.get_schema(20)
+    assert result["error_code"] == 40_403
+    # {:error, {:confluent_schema_registry, 0, :econnrefused}}
+  end
+
 end
