@@ -3,14 +3,12 @@
 This is a library for working with [Avro](https://avro.apache.org/)
 schemas and the [Confluent® Schema Registry](https://www.confluent.io/confluent-schema-registry),
 primarily focused on working with [Kafka](https://kafka.apache.org/) streams.
-
 It relies on [erlavro](https://github.com/klarna/erlavro) for encoding and
 decoding data and [confluent_schema_registry](https://github.com/cogini/confluent_schema_registry)
 to look up schemas using the [Schema Registry API](https://docs.confluent.io/current/schema-registry/develop/api.html).
 
 Its primary value is that it caches schemas for performance and to allow
 programs to work independently of the Schema Registry being available.
-
 It also has a consistent set of functions to manage schema tags, look up
 schemas from the Schema Registry or files, and encode/decode data.
 
