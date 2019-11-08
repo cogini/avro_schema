@@ -1,42 +1,61 @@
 defmodule AvroSchema do
   @moduledoc File.read!("README.md")
 
-  @app :avro_schema
-
-  @typedoc "Integer ID returned by Schema Registry"
-  @type regid() :: pos_integer()
-
-  @typedoc "Subject in Schema Registry"
-  @type subject() :: binary()
-  @typedoc "Fingerprint, normally CRC-64-AVRO but could be e.g. MD5"
-  @type fp() :: binary()
-  @typedoc "Cache key"
-  @type ref() :: regid() | {subject(), fp()}
-  @typedoc "Tesla client"
-  @type client() :: Tesla.Client.t()
-
-  @dets_table @app
-  @ets_table __MODULE__
-
   use GenServer
 
   require Logger
 
+  @app :avro_schema
+  @dets_table @app
+  @ets_table __MODULE__
+
   # Public API
 
+  # Types
+  @typedoc "Integer ID returned by Schema Registry"
+  @type regid() :: pos_integer()
+
+  @typedoc "Subject in Schema Registry / Avro name"
+  @type subject() :: binary()
+
+  @typedoc "Fingerprint, normally CRC-64-AVRO but could be e.g. MD5"
+  @type fp() :: binary()
+
+  @typedoc "Cache key"
+  @type ref() :: regid() | {subject(), fp()}
+
+  @typedoc "Tesla client"
+  @type client() :: Tesla.Client.t()
+
+
   @doc """
-  Tag Avro binary data with schema.
+  Tag Avro binary data with schema that created it.
+
+  Adds a tag to the front of data indicating the schema that was used
+  to encode it.
 
   Uses [Confluent wire format](https://docs.confluent.io/current/schema-registry/serializer-formatter.html#wire-format)
   for integer registry IDs and [Avro single object encoding](https://avro.apache.org/docs/1.8.2/spec.html#single_object_encoding_spec)
   for fingerprints.
 
-  This function matches schema IDs as integers and fingerprints as binary.
-  Strictly speaking, though fingerprints can be integers, so make sure that you
-  convert them to binary first.
+  This function matches schema IDs as integers and encodes them using Confluent
+  format, and fingerprints as binary and encodes them as Avro.
+
+  Strictly speaking, however, fingerprints are integers, so make sure that you
+  convert them to binary before calling this function.
+
+  Note that this function returns an iolist for efficiency, not a binary.
+
+  ## Examples
+
+      iex> schema_json = "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
+      iex> fp = AvroSchema.fingerprint_schema(schema_json)
+      iex> AvroSchema.tag("hello", fp)
+      [<<195, 1>>, <<172, 194, 58, 14, 16, 237, 158, 12>>, "hello"]
+
   """
-  @spec tag(binary, regid | fp) :: iolist
-  def tag_bin(bin, fp) when is_binary(fp) do
+  @spec tag(iodata, regid | fp) :: iolist
+  def tag(bin, fp) when is_binary(fp) do
     [<<0xC3, 0x01>>, fp, bin]
     # [<<0xC3, 0x01, fp::unsigned-little-64>>, bin]
   end
@@ -50,8 +69,18 @@ defmodule AvroSchema do
   Supports [Confluent wire format](https://docs.confluent.io/current/schema-registry/serializer-formatter.html#wire-format)
   for integer registry IDs and [Avro single object encoding](https://avro.apache.org/docs/1.8.2/spec.html#single_object_encoding_spec)
   for fingerprints.
+
+  ## Examples
+
+    iex> tagged_avro = IO.iodata_to_binary([<<195, 1>>, <<172, 194, 58, 14, 16, 237, 158, 12>>, "hello"])
+    iex> AvroSchema.untag(tagged_avro)
+    {:ok, {{:avro, <<172, 194, 58, 14, 16, 237, 158, 12>>}, "hello"}}
+
+    iex> tagged_confluent = IO.iodata_to_binary([<<0, 0, 0, 0, 7>>, "hello"])
+    iex> AvroSchema.untag(tagged_confluent)
+    {:ok, {{:confluent, 7}, "hello"}}
   """
-  @spec untag(binary) ::
+  @spec untag(iodata) ::
     {:ok, {{:confluent, regid}, binary}} | {:ok, {{:avro, fp}, binary}} | {:error, :unknown_tag}
   def untag(<<0, regid::unsigned-big-32, data::binary>>) do
     {:ok, {{:confluent, regid}, data}}
@@ -64,7 +93,13 @@ defmodule AvroSchema do
   end
 
   @doc """
-  Get schema and codecs for schema reference.
+  Get schema for schema reference.
+
+  This tries to read the schema from the cache. If not found, it makes a call
+  to the Schema Registry.
+
+  This is typically called by a Kafka consumer to find the schema which was
+  used to encode data based on the tag.
 
   This call has the overhead of an ETS lookup and potentially a GenServer call
   to fetch the Avro schema via HTTP. If you need maximum performance, keep the
@@ -81,7 +116,42 @@ defmodule AvroSchema do
   end
 
   @doc """
-  Register schema with subject in Confluent Schema Registry.
+  Cache schema locally.
+
+  Inserts the schema in the local cache under one or more references.
+
+  `get_schema/1` will then return the schema without needing to communicate
+  with the the Schema Registry.
+
+  ## Examples
+
+      iex> schema_json = "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
+      iex> {:ok, schema} = AvroSchema.parse_schema(schema_json)
+      iex> full_name = AvroSchema.full_name(schema_json)
+      iex> fp = AvroSchema.fingerprint_schema(schema_json)
+      iex> ref = {full_name, fp}
+      iex> :ok = AvroSchema.cache_schema(ref, schema)
+      :ok
+  """
+  @spec cache_schema(ref | list(ref), binary | :avro.avro_type, boolean) :: :ok | {:error, term}
+  def cache_schema(refs, schema, persistent \\ false)
+  def cache_schema(refs, schema, persistent) when is_list(refs) do
+    case process_schema(schema) do
+      {:ok, value} ->
+        objects = Enum.map(refs, &({&1, value}))
+        cache_insert(objects, persistent)
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+  def cache_schema(ref, schema, persistent), do: cache_schema([ref], schema, persistent)
+
+  # TODO
+  @doc """
+  Register schema in Confluent Schema Registry.
+
+  The subject is normally the full name from the Avro schema, though you can register
+  things in the Schema Registry under arbitrary names.
 
   It is safe to register the same schema multiple times, it will always return
   the same ID.
@@ -96,26 +166,26 @@ defmodule AvroSchema do
     end
   end
 
-  @spec encode_schema(:avro.avro_type) :: binary
-  def encode_schema(schema) do
-    :avro.encode_schema(schema)
+  @doc """
+  Cache registration.
+
+  Inserts the schema in the local cache.
+
+  `register_schema/1` will then return the id without needing to communicate
+  with the the Schema Registry.
+  """
+  @spec cache_registration(subject, binary, regid, boolean) :: :ok | {:error, term}
+  def cache_registration(subject, schema, regid, persistent \\ false) when is_binary(schema) do
+    cache_insert({{subject, schema}, regid}, persistent)
   end
 
-  @spec get_decoder(regid, Keyword.t) :: {:ok, fun} | {:error, term}
-  def get_decoder(regid, decoder_opts \\ [])
-  def get_decoder(regid, decoder_opts) when is_integer(regid) do
-    case get_schema(regid) do
-      {:ok, schema} ->
-        {:ok, :avro.make_simple_decoder(schema, decoder_opts)}
-      error ->
-        error
-    end
-  end
-  def get_decoder({:confluent, regid}, decoder_opts), do: get_decoder(regid, decoder_opts)
+  @doc """
+  Make Avro decoder for schema.
 
-  @doc "Make Avro decoder for schema"
+  Creates a function which decodes a Avro encoded binary data to a map.
+  """
   @spec make_decoder(binary | :avro.avro_type, Keyword.t) :: {:ok, fun} | {:error, term}
-  def make_decoder(schema, decoder_opts \\ [])
+  def make_decoder(schema, decoder_opts \\ [record_type: :map])
   def make_decoder(schema_json, decoder_opts) when is_binary(schema_json) do
     case parse_schema(schema_json) do
       {:ok, schema} ->
@@ -128,8 +198,31 @@ defmodule AvroSchema do
     {:ok, :avro.make_simple_decoder(schema, decoder_opts)}
   end
 
-  @doc "Make Avro encoder for schema"
+  @doc """
+  Get decoder function for registration id.
+
+  Convenience function, calls `get_schema/1` on the id, then `make_decoder/2`.
+  """
+  @spec get_decoder(ref | {:confluent, regid}, Keyword.t) :: {:ok, fun} | {:error, term}
+  def get_decoder(ref, decoder_opts \\ [record_type: :map])
+  def get_decoder({:confluent, regid}, decoder_opts), do: get_decoder(regid, decoder_opts)
+  def get_decoder(ref, decoder_opts) do
+    case get_schema(ref) do
+      {:ok, schema} ->
+        make_decoder(schema, decoder_opts)
+      error ->
+        error
+    end
+  end
+
+  # TODO
+  @doc """
+  Make Avro encoder for schema.
+
+  Creates a function which encodes Avro terms to binary.
+  """
   @spec make_encoder(binary | :avro.avro_type, Keyword.t) :: {:ok, fun} | {:error, term}
+  def make_encoder(schema_json, encoder_opts \\ [])
   def make_encoder(schema_json, encoder_opts) when is_binary(schema_json) do
     case parse_schema(schema_json) do
       {:ok, schema} ->
@@ -140,6 +233,21 @@ defmodule AvroSchema do
   end
   def make_encoder(schema, encoder_opts) do
     {:ok, :avro.make_simple_encoder(schema, encoder_opts)}
+  end
+
+  @doc """
+  Get encoder function for registration id.
+
+  Convenience function, calls `get_schema/1` on the id, then `make_encoder/2`.
+  """
+  @spec get_encoder(ref, Keyword.t) :: {:ok, fun} | {:error, term}
+  def get_encoder(ref, encoder_opts \\ []) do
+    case get_schema(ref) do
+      {:ok, schema} ->
+        make_encoder(schema, encoder_opts)
+      error ->
+        error
+    end
   end
 
   # @spec decode(binary) :: {:ok, map | [{binary, term}]} | {:error, term}
@@ -153,11 +261,13 @@ defmodule AvroSchema do
   #   end
   # end
 
+  @doc "Decode binary Avro data."
   @spec decode(binary, fun) :: map | [{binary, term}]
   def decode(bin, decoder) do
     decoder.(bin)
   end
 
+  @doc "Encode Avro data to binary."
   @spec encode(map | [{binary, term}], fun) :: binary
   def encode(data, encoder) do
     encoder.(data)
@@ -167,7 +277,14 @@ defmodule AvroSchema do
   Create fingerprint of schema JSON.
 
   Ensures that schema is in standard form, then generates an
-  CRC-64-AVRO fingerprint on it.
+  CRC-64-AVRO fingerprint on it using `create_fingerprint/1`.
+
+  ## Examples
+
+      iex> schema_json = "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
+      iex> AvroSchema.fingerprint_schema(schema_json)
+      <<172, 194, 58, 14, 16, 237, 158, 12>>
+
   """
   @spec fingerprint_schema(binary) :: fp
   def fingerprint_schema(schema) do
@@ -175,6 +292,22 @@ defmodule AvroSchema do
     |> canonicalize_schema()
     |> normalize_json()
     |> create_fingerprint()
+  end
+
+  @doc """
+  Create CRC-64-AVRO fingerprint hash for Avro schema JSON.
+
+  See [CRC-64-AVRO](https://avro.apache.org/docs/1.8.2/spec.html#schema_fingerprints)
+
+  ## Examples
+
+      iex> schema_json = "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
+      iex> AvroSchema.fingerprint_schema(schema_json)
+      <<172, 194, 58, 14, 16, 237, 158, 12>>
+  """
+  @spec create_fingerprint(binary) :: fp
+  def create_fingerprint(schema) do
+    <<:avro.crc64_fingerprint(schema) :: little-size(64)>>
   end
 
   @doc """
@@ -190,8 +323,10 @@ defmodule AvroSchema do
   end
 
   @doc """
-  Normalize JSON by decoding and re-encoding it. This reduces irrelevant
-  differences such as whitespace which may affect fingerprinting.
+  Normalize JSON by decoding and re-encoding it.
+
+  This reduces irrelevant differences such as whitespace which may affect
+  fingerprinting.
   """
   @spec normalize_json(binary) :: binary
   def normalize_json(json) do
@@ -199,37 +334,54 @@ defmodule AvroSchema do
     :jsone.encode(parsed_json)
   end
 
-  @doc """
-  Create CRC-64-AVRO fingerprint hash for Avro schema JSON.
-
-  See [CRC-64-AVRO](https://avro.apache.org/docs/1.8.2/spec.html#schema_fingerprints)
-  """
-  @spec create_fingerprint(binary) :: fp
-  def create_fingerprint(schema) do
-    <<:avro.crc64_fingerprint(schema) :: little-size(64)>>
+  @doc "Encode parsed schema as JSON."
+  @spec encode_schema(:avro.avro_type, Keyword.t) :: binary
+  def encode_schema(schema, opts \\ []) do
+    :avro.encode_schema(schema, opts)
   end
 
   @doc "Make registration subject from name + fingerprint."
   @spec make_subject({binary, fp}) :: binary
-  def make_subject({name, fp}) when is_binary(fp) do
-    fp_hex = Base.encode16(fp, case: :lower)
-    "#{name}-#{fp_hex}"
-  end
+  def make_subject({name, fp}) when is_binary(fp), do: "#{name}-#{to_hex(fp)}"
 
   @spec make_subject(binary, fp) :: binary
   def make_subject(name, fp) when is_binary(fp), do: make_subject({name, fp})
 
-  # TODO: is_registered?
+  @doc "
+  Get full name field from schema.
 
-  @doc "Parse schema into avro library internal form"
+  This is normally the same as the Schema Registry subject.
+  "
+  @spec full_name(:avro.avro_type | binary) :: binary
+  def full_name(schema_json) when is_binary(schema_json) do
+    {:ok, schema} = parse_schema(schema_json)
+    full_name(schema)
+  end
+  def full_name({:avro_record_type, _, _, _, _, _, full_name, _}) do
+    to_string(full_name)
+  end
+
+  @doc """
+  Parse schema into avro library internal form.
+
+  ## Examples
+
+    iex> schema_json = "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
+    iex> {:ok, schema} = AvroSchema.parse_schema(schema_json)
+    {:ok,
+     {:avro_record_type, "test", "", "", [],
+      [
+        {:avro_record_field, "field1", "", {:avro_primitive_type, "string", []},
+          :undefined, :ascending, []},
+  """
   @spec parse_schema(binary) :: {:ok, :avro.avro_type} | {:error, term}
   def parse_schema(json) do
     avro_type = :avro.decode_schema(json)
     lkup = :avro.make_lkup_fun(avro_type)
     {:ok, :avro.expand_type_bloated(avro_type, lkup)}
   rescue
-    e in RuntimeError -> {:error, {:parse_schema, e}}
-    # e in ArgumentError -> {:error, e.message}
+    # e in RuntimeError -> {:error, e}
+    e in ArgumentError -> {:error, e.message}
     # e in ErlangError -> {:error, e.original}
   end
 
@@ -238,30 +390,6 @@ defmodule AvroSchema do
   def to_timestamp(date_time) do
     DateTime.to_unix(date_time, :microsecond)
   end
-
-  @spec full_name(:avro.avro_type) :: binary
-  def full_name({:avro_record_type, _, _, _, _, _, full_name, _}) do
-    to_string(full_name)
-  end
-
-  @doc """
-  Inject cache entry for ref and schema.
-
-  This is useful when you simply want to use schemas locally, without talking
-  to the Schema Registry.
-  """
-  @spec cache_schema(ref | list(ref), binary, boolean) :: :ok | {:error, term}
-  def cache_schema(refs, schema, persistent \\ true)
-  def cache_schema(refs, schema, persistent) when is_list(refs) do
-    case process_schema(schema) do
-      {:ok, value} ->
-        objects = Enum.map(refs, &({&1, value}))
-        cache_insert(objects, persistent)
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-  def cache_schema(ref, schema, persistent), do: cache_schema([ref], schema, persistent)
 
   @doc """
   List schema files in directory.
@@ -337,15 +465,19 @@ defmodule AvroSchema do
     end
   end
 
+  @doc "Convert binary fingerprint to hex"
+  @spec to_hex(fp) :: binary
+  def to_hex(fp), do: Base.encode16(fp, case: :lower)
+
   # GenServer callbacks
 
-  @doc "Start the GenServer."
+  @doc "Start cache GenServer."
   @spec start_link(list, list) :: {:ok, pid} | {:error, any}
   def start_link(args, opts \\ []) do
     GenServer.start_link(__MODULE__, args, Keyword.merge([name: __MODULE__], opts))
   end
 
-  @doc "Stop the GenServer"
+  @doc "Stop cache GenServer"
   @spec stop() :: :ok
   def stop() do
     GenServer.call(__MODULE__, :stop)
@@ -379,7 +511,7 @@ defmodule AvroSchema do
       {:error, reason} ->
         Logger.error("Error opening DETS file #{path}: #{inspect reason}")
       {:ok, ref} ->
-        Logger.debug("DETS info #{inspect ref}: #{inspect :dets.info(ref)}")
+        # Logger.debug("DETS info #{inspect ref}: #{inspect :dets.info(ref)}")
         case :dets.to_ets(ref, @ets_table) do
           {:error, reason} ->
             Logger.error("Error loading data from DETS table #{path}: #{inspect reason}")
