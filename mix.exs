@@ -16,6 +16,16 @@ defmodule AvroSchema.MixProject do
       docs: docs(),
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: [coveralls: :test, "coveralls.detail": :test, "coveralls.post": :test, "coveralls.html": :test],
+      dialyzer: [
+        # plt_add_deps: :project,
+        # plt_add_deps: :apps_direct,
+        # plt_add_apps: [:ssl, :mnesia, :compiler, :xmerl, :inets, :disk_log],
+        plt_add_apps: [:erlavro, :tesla],
+        # plt_add_deps: true,
+        # flags: ["-Werror_handling", "-Wrace_conditions"],
+        # flags: ["-Wunmatched_returns", :error_handling, :race_conditions, :underspecs],
+        # ignore_warnings: "dialyzer.ignore-warnings"
+      ],
     ]
   end
 
@@ -38,12 +48,13 @@ defmodule AvroSchema.MixProject do
     [
       {:confluent_schema_registry, github: "cogini/confluent_schema_registry"},
       {:credo, "~> 1.1", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 0.5.1", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 0.5", only: [:dev, :test], runtime: false},
       {:erlavro, "~> 2.8"},
       {:ex_doc, "~> 0.19.2", only: :dev, runtime: false},
       {:excoveralls, "~> 0.12.0", only: [:dev, :test], runtime: false},
     ]
   end
+
   defp description do
     "Convenience libary for working with Avro schemas and Confluent Schema Registry"
   end
@@ -62,4 +73,5 @@ defmodule AvroSchema.MixProject do
       extras: ["README.md"]
     ]
   end
+
 end
