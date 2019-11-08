@@ -13,7 +13,24 @@ to look up schemas using the [Schema Registry API](https://docs.confluent.io/cur
 It caches schemas for performance and to allow programs to work independently
 of the Schema Registry being available.
 
-When using Kafka, producers and consumers are separated, and schemas evolve
+## Installation
+
+Add the package to your list of dependencies in `mix.exs`:
+
+```elixir
+def deps do
+  [{:avro_schema, "~> 0.1.0"}]
+end
+```
+
+Then run `mix deps.get` to fetch the new dependency.
+
+Documentation is on [HexDocs](https://hexdocs.pm/avro_schema).
+To generate a local copy, run `mix docs`.
+
+## Overview
+
+When using Kafka, producers and consumers are separated, and schemas may evolve
 over time. It is common to tag data written to Kafka to indicate the schema
 which was used to encode it. Consumers can then look up the corresponding
 schema and use it decode the data.
@@ -21,7 +38,7 @@ schema and use it decode the data.
 This library supports two formats, [Confluent wire format](https://docs.confluent.io/current/schema-registry/serializer-formatter.html#wire-format),
 and [Avro single object encoding](https://avro.apache.org/docs/1.8.2/spec.html#single_object_encoding_spec).
 
-## Confluent wire format
+### Confluent wire format
 
 With the [Confluent wire format](https://docs.confluent.io/current/schema-registry/serializer-formatter.html#wire-format),
 Avro binary encoded objects are prefixed with a five-byte tag.
@@ -30,7 +47,7 @@ The first byte indicates the Confluent serialization format version number,
 currently always 0. The following four bytes encode the integer schema ID as
 returned from the Schema Registry in network byte order.
 
-## Avro single-object encoding
+### Avro single-object encoding
 
 When used without a schema registry, it's common to prefix binary data with a
 hash of the schema that created it. In the past, that might be something like
@@ -50,8 +67,6 @@ The Schema Registry ID is more compact in the payload (only five bytes
 overhead), but relies on the registry. The fingerprint is static, and can
 be obtained at compile time, but it is harder to share with other applications
 and evolve over time.
-
-## Usage
 
 ### Kafka producer
 
@@ -201,21 +216,4 @@ at a time. See https://www.cogini.com/blog/avoiding-genserver-bottlenecks/ for
 discussion.
 
 ## Usage
-
-## Installation
-
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `avro_schema` to your list of dependencies in `mix.exs`:
-
-```elixir
-def deps do
-  [
-    {:avro_schema, "~> 0.1.0"}
-  ]
-end
-```
-
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/avro_schema](https://hexdocs.pm/avro_schema).
 
