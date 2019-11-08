@@ -12,6 +12,11 @@ programs to work independently of the Schema Registry being available.
 It also has a consistent set of functions to manage schema tags, look up
 schemas from the Schema Registry or files, and encode/decode data.
 
+Much thanks to Klarna for [Avlizer](https://github.com/klarna/avlizer), which
+provides similar functionality to this library in Erlang,
+[erlavro](https://github.com/klarna/erlavro) for Avro, and
+[brod](https://github.com/klarna/brod) for dealing with Kafka.
+
 ## Installation
 
 Add the package to your list of dependencies in `mix.exs`:

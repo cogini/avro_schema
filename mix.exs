@@ -1,6 +1,8 @@
 defmodule AvroSchema.MixProject do
   use Mix.Project
 
+  @github "https://github.com/cogini/avro_schema"
+
   def project do
     [
       app: :avro_schema,
@@ -10,8 +12,8 @@ defmodule AvroSchema.MixProject do
       start_permanent: Mix.env() == :prod,
       description: description(),
       package: package(),
-      source_url: "https://github.com/cogini/avro_schema",
-      homepage_url: "https://github.com/cogini/avro_schema",
+      source_url: @github,
+      homepage_url: @github,
       deps: deps(),
       docs: docs(),
       test_coverage: [tool: ExCoveralls],
@@ -63,15 +65,14 @@ defmodule AvroSchema.MixProject do
     [
       maintainers: ["Jake Morrison"],
       licenses: ["Apache 2.0"],
-      links: %{"GitHub" => "https://github.com/cogini/avro_schema"}
+      links: %{"GitHub" => @github}
     ]
   end
 
   defp docs do
     [
-      source_url: "https://github.com/cogini/avro_schema",
+      source_url: @github,
       extras: ["README.md"]
     ]
   end
-
 end
