@@ -1,17 +1,18 @@
 # AvroSchema
 
-This is a convenience library for working with [Avro](https://avro.apache.org/)
-schemas and the [Confluent® Schema Registry](https://www.confluent.io/confluent-schema-registry).
+This is a library for working with [Avro](https://avro.apache.org/)
+schemas and the [Confluent® Schema Registry](https://www.confluent.io/confluent-schema-registry),
+primarily focused on working with [Kafka](https://kafka.apache.org/) streams.
 
-It is primarily focused on working with [Kafka](https://kafka.apache.org/)
-streams.
-
-This library uses [erlavro](https://github.com/klarna/erlavro) for encoding
-and decoding data and [confluent_schema_registry](https://github.com/cogini/confluent_schema_registry)
+It relies on [erlavro](https://github.com/klarna/erlavro) for encoding and
+decoding data and [confluent_schema_registry](https://github.com/cogini/confluent_schema_registry)
 to look up schemas using the [Schema Registry API](https://docs.confluent.io/current/schema-registry/develop/api.html).
 
-It caches schemas for performance and to allow programs to work independently
-of the Schema Registry being available.
+Its primary value is that it caches schemas for performance and to allow
+programs to work independently of the Schema Registry being available.
+
+It also has a consistent set of functions to manage schema tags, look up
+schemas from the Schema Registry or files, and encode/decode data.
 
 ## Installation
 
@@ -72,7 +73,7 @@ MD5.
 
 The Avro "Single-object encoding" formalizes this, prefixing Avro binary data
 with a two-byte marker, C3 01, to show that the message is Avro and uses this
-single-record format (version 1). That is followed by the the 8-byte little-endian
+single-record format (version 1). That is followed by the 8-byte little-endian
 [CRC-64-AVRO](https://avro.apache.org/docs/1.8.2/spec.html#schema_fingerprints)
 fingerprint of the object's schema.
 
@@ -83,7 +84,7 @@ implemented in `fingerprint_schema/1`.
 ### Schema Registry
 
 In a relatively static system, it's not too hard to exchange schema files
-between producers and consumers. When things are changing more frequlently, it
+between producers and consumers. When things are changing more frequently, it
 can be difficult to keep files up to date. It's also easy for insignificant
 differences such as whitespace to result in a different schema hashes.
 
@@ -92,10 +93,10 @@ producers and consumers can call to get a unique identifier for a schema
 version. Producers register a schema with the service and get an id.
 Consumers look up the id to get the schema. The Schema Registry also
 does validation on new schemas to ensure that they meet the backwards
-compatibility polciy for the organization.
+compatibility policy for the organization.
 
 The disadvantage of the Schema Registry is that it can be a single point
-of faiilure. Different schema registries will in general assign a different
+of failure. Different schema registries will in general assign a different
 numeric id to the same schema.
 
 This library provides functions to register schemas with the Schema Registry
@@ -106,9 +107,9 @@ Once read, the numeric IDs never change, so it's safe to cache them indefinitely
 
 The library also has support for managing schemas from files. It can add files
 to the cache by fingerprint, registering the same schema under multiple
-fingerprints, i.e. the raw JSON, a version ine[Parsing Canonical
+fingerprints, i.e. the raw JSON, a version in [Parsing Canonical
 Form](https://avro.apache.org/docs/current/spec.html#Parsing+Canonical+Form+for+Schemas)
-and with whitepace stripped out. You can also manually register aliases for the
+and with whitespace stripped out. You can also manually register aliases for the
 name and fingerprint to handle legacy data.
 
 ## Kafka producer example
@@ -278,7 +279,7 @@ iex> decoded = AvroSchema.decode(bin, decoder)
 
 ## Performance
 
-For best performance, save the encoder or decorder in your process
+For best performance, save the encoder or decoder in your process
 state to avoid the overhead of looking it up for each message.
 
 An in-memory ETS cache maps the integer registry ID or name + fingerprint
@@ -298,7 +299,7 @@ allowing programs to work without continuous access to the Schema Registry.
 
 Programs which use Kafka may process high message volumes, so efficiency
 is important. They generally use multiple processes, typically one per
-topic partion or more. On startup, each process may simultaneously attempt to
+topic partition or more. On startup, each process may simultaneously attempt to
 look up schemas.
 
 The cache lookup runs in the caller's process, so it can run in parallel.
