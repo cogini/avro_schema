@@ -2,5 +2,5 @@
 ExUnit.start()
 ExUnit.configure(exclude: [
   :skip,
-  # :live_registry,
+  :live_registry,
 ])

@@ -132,9 +132,11 @@ defmodule AvroSchemaTest do
     {:ok, 1} = AvroSchema.register_schema(full_name, schema_json)
   end
 
-  test "to_timestamp" do
-    timestamp = ~U[2019-11-08 06:54:24.234207Z]
-    assert 1_573_196_064_234_207 == AvroSchema.to_timestamp(timestamp)
+  test "timestamps" do
+    datetime = ~U[2019-11-08 06:54:24.234207Z]
+    timestamp = AvroSchema.to_timestamp(datetime)
+    assert 1_573_196_064_234_207 == timestamp
+    assert datetime == AvroSchema.to_datetime(timestamp)
   end
 
   test "get_schema_files", %{schema_json: schema_json} do

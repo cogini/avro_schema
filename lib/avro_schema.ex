@@ -306,8 +306,8 @@ defmodule AvroSchema do
       <<172, 194, 58, 14, 16, 237, 158, 12>>
   """
   @spec create_fingerprint(binary) :: fp
-  def create_fingerprint(schema) do
-    <<:avro.crc64_fingerprint(schema) :: little-size(64)>>
+  def create_fingerprint(binary) do
+    <<:avro.crc64_fingerprint(binary) :: little-size(64)>>
   end
 
   @doc """
@@ -385,10 +385,32 @@ defmodule AvroSchema do
     # e in ErlangError -> {:error, e.original}
   end
 
-  @doc "Convert DateTime to Avro integer timestamp with ms precision"
+  @doc """
+  Convert DateTime to Avro integer timestamp with ms precision.
+
+  ## Examples
+
+      iex> datetime = DateTime.utc_now()
+      ~U[2019-11-08 09:09:01.055742Z]
+
+      iex> timestamp = AvroSchema.to_timestamp(datetime)
+      1573204141055742
+  """
   @spec to_timestamp(DateTime.t) :: non_neg_integer
   def to_timestamp(date_time) do
     DateTime.to_unix(date_time, :microsecond)
+  end
+
+  @doc """
+  Convert Avro integer timestamp to DateTime.
+
+      iex> timestamp = 1573204141055742
+      iex> datetime = AvroSchema.to_datetime(timestamp)
+      ~U[2019-11-08 09:09:01.055742Z]
+  """
+  def to_datetime(timestamp) do
+    {:ok, datetime} = DateTime.from_unix(timestamp, :microsecond)
+    datetime
   end
 
   @doc """
@@ -517,6 +539,7 @@ defmodule AvroSchema do
             Logger.error("Error loading data from DETS table #{path}: #{inspect reason}")
           _ ->
             # Logger.debug("Initialized ETS cache from DETS table #{path}")
+            :ok
         end
     end
     :ok

@@ -1,6 +1,6 @@
-# avro_schema
+# AvroSchema
 
-Convenience library for working with [Avro](https://avro.apache.org/)
+This is a convenience library for working with [Avro](https://avro.apache.org/)
 schemas and the [Confluent® Schema Registry](https://www.confluent.io/confluent-schema-registry).
 
 It is primarily focused on working with [Kafka](https://kafka.apache.org/)
@@ -28,14 +28,31 @@ Then run `mix deps.get` to fetch the new dependency.
 Documentation is on [HexDocs](https://hexdocs.pm/avro_schema).
 To generate a local copy, run `mix docs`.
 
+## Starting
+
+Add the cache GenServer to your application's supervision tree:
+
+```elixir
+def start(_type, _args) do
+  cache_dir = Application.get_env(:yourapp, :cache_dir, "/tmp")
+
+  children = [
+    {AvroSchema, [cache_dir: cache_dir]},
+  ]
+
+  opts = [strategy: :one_for_one, name: LogElasticsearch.Supervisor]
+  Supervisor.start_link(children, opts)
+end
+```
+
 ## Overview
 
 When using Kafka, producers and consumers are separated, and schemas may evolve
-over time. It is common to tag data written to Kafka to indicate the schema
-which was used to encode it. Consumers can then look up the corresponding
-schema and use it decode the data.
+over time. It is common for producers to tag data indicating the schema that
+was used to encode it. Consumers can then look up the corresponding schema
+version and use it decode the data.
 
-This library supports two formats, [Confluent wire format](https://docs.confluent.io/current/schema-registry/serializer-formatter.html#wire-format),
+This library supports two tagging formats, [Confluent wire format](https://docs.confluent.io/current/schema-registry/serializer-formatter.html#wire-format),
 and [Avro single object encoding](https://avro.apache.org/docs/1.8.2/spec.html#single_object_encoding_spec).
 
 ### Confluent wire format
@@ -51,7 +68,7 @@ returned from the Schema Registry in network byte order.
 
 When used without a schema registry, it's common to prefix binary data with a
 hash of the schema that created it. In the past, that might be something like
-an MD5 hash.
+MD5.
 
 The Avro "Single-object encoding" formalizes this, prefixing Avro binary data
 with a two-byte marker, C3 01, to show that the message is Avro and uses this
@@ -59,27 +76,54 @@ single-record format (version 1). That is followed by the the 8-byte little-endi
 [CRC-64-AVRO](https://avro.apache.org/docs/1.8.2/spec.html#schema_fingerprints)
 fingerprint of the object's schema.
 
-The CRC64 algorithm is uncommon, but used because it is shorter than e.g. MD5,
+The CRC64 algorithm is uncommon, but used because it is relatively short,
 while still being good enough to detect collisions. The fingerprint function is
-implemented in the `erlavro:crc64_fingerprint/1` function.
+implemented in `fingerprint_schema/1`.
 
-The Schema Registry ID is more compact in the payload (only five bytes
-overhead), but relies on the registry. The fingerprint is static, and can
-be obtained at compile time, but it is harder to share with other applications
-and evolve over time.
+### Schema Registry
 
-### Kafka producer
+In a relatively static system, it's not too hard to exchange schema files
+between producers and consumers. When things are changing more frequlently, it
+can be difficult to keep files up to date. It's also easy for insignificant
+differences such as whitespace to result in a different schema hashes.
 
-A Kafka producer program needs to be able to encode the data with an Avro schema
-and tag it with the schema ID or fingerprint. It normally stores the schema in
-the code or reads it from a file.
+The Schema Registry solves this by providing a centralized service which
+producers and consumers can call to get a unique identifier for a schema
+version. Producers register a schema with the service and get an id.
+Consumers look up the id to get the schema. The Schema Registry also
+does validation on new schemas to ensure that they meet the backwards
+compatibility polciy for the organization.
+
+The disadvantage of the Schema Registry is that it can be a single point
+of faiilure. Different schema registries will in general assign a different
+numeric id to the same schema.
+
+This library provides functions to register schemas with the Schema Registry
+and look them up by id. It caches the results in RAM (ETS) for performance,
+and optionally also on disk (ETS). This gives good performance and allows
+programs to work without needing to communicate with the Schema Registry.
+Once read, the numeric IDs never change, so it's safe to cache them indefinitely.
+
+The library also has support for managing schemas from files. It can add files
+to the cache by fingerprint, registering the same schema under multiple
+fingerprints, i.e. the raw JSON, a version ine[Parsing Canonical
+Form](https://avro.apache.org/docs/current/spec.html#Parsing+Canonical+Form+for+Schemas)
+and with whitepace stripped out. You can also manually register aliases for the
+name and fingerprint to handle legacy data.
+
+## Kafka producer example
+
+A Kafka producer program needs to be able to encode the data with an Avro
+schema and tag it with the schema ID or fingerprint. It normally stores the
+schema in the code or reads it from a file.
 
 It can then call the Schema Registry to get the ID matching the Avro schema and
 subject:
 
 ```elixir
-iex> AvroSchema.register_schema(subject, schema)
-{:ok, 1}
+iex> schema_json = "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
+iex(5)> {:ok, ref} = AvroSchema.register_schema("test", schema_json)
+{:ok, 21}
 ```
 
 The subject is a name which identifies the type of data. Multiple Kafka topics
@@ -95,81 +139,175 @@ TODO: link
 
 The producer next needs to get an encoder for the schema.
 
-```elixir
-{:ok, encoder} = AvroSchema.make_encoder(schema)
-iex>
-```
-
 The encoder is a function that takes a list of Avro key/value data and encodes
 it to a binary.
 
 ```elixir
-defmodule Request do
-  @moduledoc "Request log"
+iex> {:ok, encoder} = AvroSchema.make_encoder(schema_json)
+{:ok, #Function<2.110795165/1 in :avro.make_simple_encoder/2>}
+```
 
-  defstruct [
-    node_name: "",  # source host of log record
-    timestamp: "",  # Log time, format ISO-8601 "YYYY-MM-DDTHH:MM:SSZ"
-    ip: "",         # Request IP address
-    duration: 0.0,  # Processing time for request, float seconds
-    host: "",       # Request host
-    request_id: ""  # Unique id for request, GUID
+Next we encode some data:
+
+```elixir
+iex> data = %{field1: "hello", field2: 100}
+iex> encoded = AvroSchema.encode(data, encoder)
+[['\n', "hello"], [200, 1]]
+```
+
+Finally, we tag the data:
+
+```elixir
+iex> tagged_confluent = AvroSchema.tag(encoded, 21)
+[<<0, 0, 0, 0, 21>>, [['\n', "hello"], [200, 1]]]
+```
+
+If you are using files, the process is similar. First
+create a fingerprint for the schema:
+
+```elixir
+iex> fp = AvroSchema.fingerprint_schema(schema_json)
+<<172, 194, 58, 14, 16, 237, 158, 12>>
+```
+
+Next tag the data:
+
+```elixir
+iex> tagged_avro = AvroSchema.tag(encoded, fp)
+[
+  <<195, 1>>,
+  <<172, 194, 58, 14, 16, 237, 158, 12>>,
+  [['\n', "hello"], [200, 1]]
+]
+```
+
+Now you can send the data to Kafka.
+
+## Kafka consumer example
+
+The process for a consumer is similar.
+
+Receive the data and get the registration id in Confluent format:
+
+```elixir
+iex> tagged_confluent = IO.iodata_to_binary(AvroSchema.tag(encoded, 21))
+<<0, 0, 0, 0, 21, 10, 104, 101, 108, 108, 111, 200, 1>>
+
+iex> {:ok, {{:confluent, regid}, bin}} = AvroSchema.untag(tagged_confluent)
+{:ok, {{:confluent, 21}, <<10, 104, 101, 108, 108, 111, 200, 1>>}}
+```
+
+Get the schema from the Schema Registry:
+
+```elixir
+iex> {:ok, schema} = AvroSchema.get_schema(regid)
+{:ok,
+ {:avro_record_type, "test", "", "", [],
+  [
+    {:avro_record_field, "field1", "", {:avro_primitive_type, "string", []},
+     :undefined, :ascending, []},
+    {:avro_record_field, "field2", "", {:avro_primitive_type, "int", []},
+     :undefined, :ascending, []}
+  ], "test", []}}
+```
+
+Create a decoder and decode the data:
+
+```elixir
+iex> {:ok, decoder} = AvroSchema.make_decoder(schema)
+{:ok, #Function<4.110795165/1 in :avro.make_simple_decoder/2>}
+
+iex> decoded = AvroSchema.decode(bin, decoder)
+%{"field1" => "hello", "field2" => 100}
+```
+
+The process is similar with a fingerprint.  In this case, we get the schema
+from files and register it in the cache using the schema name and fingerprints. There
+is more than one fingerprint because we register it with the raw schema from
+the file and the normalized JSON for better interop.
+
+```elixir
+iex> {:ok, files} = AvroSchema.get_schema_files("test/schemas")
+{:ok, ["test/schemas/test.avsc"]}
+
+iex> for file <- files, do: AvroSchema.cache_schema_file(file)
+[
+  ok: [
+    {"test", <<172, 194, 58, 14, 16, 237, 158, 12>>},
+    {"test", <<194, 132, 80, 199, 36, 146, 103, 147>>}
   ]
+]
+```
 
-  @type t :: %__MODULE__{
-    node_name: binary,  # source host of log record
-    timestamp: binary | non_neg_integer | DateTime.t, # Log time, format ISO-8601 "YYYY-MM-DDTHH:MM:SSZ"
-    ip: binary,         # Request IP address
-    duration: float,    # Processing time for this request, float seconds
-    host: binary,       # Request host
-    request_id: binary  # Unique id for request, GUID
-  }
+To decode, separate the fingerprint from the data:
 
-  def avro_schema do
-    """
-    {"type": "record", "name":"RequestLog", "namespace": "com.dmpro.bounce",
-      "fields": [
-        {"name": "node_name", "type": "string"},
-        {"name": "timestamp", "type": "long", "logicalType": "timestamp-millis"},
-        {"name": "ip", "type": "string"},
-        {"name": "duration", "type": "float"},
-        {"name": "host", "type": "string"},
-        {"name": "request_id", "type": "string"}
-      ]
-    }
-    """
-  end
+```elixir
+iex> tagged_avro = IO.iodata_to_binary(AvroSchema.tag(encoded, fp))
+<<195, 1, 172, 194, 58, 14, 16, 237, 158, 12, 10, 104, 101, 108, 108, 111, 200,
+  1>>
 
-  @spec to_avro_term(t) :: map
-  def to_avro_term(struct) do
-    data = [
-      {"node_name", struct.node_name},
-      {"timestamp", struct.timestamp},
-      {"ip", struct.ip},
-      {"duration", struct.duration},
-      {"host", struct.host},
-      {"request_id", struct.request_id},
-    ]
-    %{type: "com.example.Request", data: data, key: struct.request_id}
-  end
-end
+iex> {:ok, {{:avro, fp}, bin}} = AvroSchema.untag(tagged_avro)
+{:ok, {{:avro, <<172, 194, 58, 14, 16, 237, 158, 12>>},
+  <<10, 104, 101, 108, 108, 111, 200, 1>>}}
+```
 
-{:ok, datetime} = DateTime.now("Etc/UTC")
-timestamp = AvroSchema.to_timestamp(datetime)
+Get the decoder and decode the data:
 
-request = %Request{timestamp: timestamp, ....}
-bin = request
-      |> Request.to_avro_term()
-      |> AvroSchema.encode(encoder)
-      |> AvroSchema.tag(1)
+```elixir
+iex> {:ok, schema} = AvroSchema.get_schema({"test", fp})
+{:ok,
+ {:avro_record_type, "test", "", "", [],
+  [
+    {:avro_record_field, "field1", "", {:avro_primitive_type, "string", []},
+     :undefined, :ascending, []},
+    {:avro_record_field, "field2", "", {:avro_primitive_type, "int", []},
+     :undefined, :ascending, []}
+  ], "test", []}}
+```
+
+Decoding works the same as with the Schema Registry:
+
+```elixir
+iex> {:ok, decoder} = AvroSchema.make_decoder(schema)
+{:ok, #Function<4.110795165/1 in :avro.make_simple_decoder/2>}
+
+iex> decoded = AvroSchema.decode(bin, decoder)
+%{"field1" => "hello", "field2" => 100}
 ```
 
 
+## Performance
 
+For best performance, save the encoder or decorder in your process
+state to avoid the overhead of looking it up for each message.
 
+An in-memory ETS cache maps the integer registry ID or name + fingerprint
+to the corresponding schema and decoder. It also allows lookups using name and
+fingerprint as a key.
+
+The fingerprint is CRC64 by default. You can also register a name with your own
+fingerprint.
+
+This library also allows consumers to look up the schema on demand from the
+Schema Registry using the name + fingerprint as the registry subject name.
+
+TODO:
+
+This library can optionally persist the cache data on disk using DETS,
+allowing programs to work without continuous access to the Schema Registry.
+
+Programs which use Kafka may process high message volumes, so efficiency
+is important. They generally use multiple processes, typically one per
+topic partion or more. On startup, each process may simultaneously attempt to
+look up schemas.
+
+The cache lookup runs in the caller's process, so it can run in parallel.
+If there is a cache miss, then it calls the GenServer to update the cache.
+This has the effect of serializing requests, ensuring that only one runs
+at a time. See https://www.cogini.com/blog/avoiding-genserver-bottlenecks/ for
+discussion.
 
 In order to improve interoperability, the schema should be put into standard form.
-
 
 It might also call the schema registry to get the schema for a given subject:
 
@@ -184,36 +322,17 @@ iex> ConfluentSchemaRegistry.get_schema(client, "test")
 }}
 ```
 
+### Timestamps
 
+Avro timestamps are in Unix format with microsecond precision:
 
-## Caching
+```elixir
+iex> datetime = DateTime.utc_now()
+~U[2019-11-08 09:09:01.055742Z]
 
-An in-memory ETS cache maps the integer registry ID or name + fingerprint
-to the corresponding schema and decoder.
+iex> timestamp = AvroSchema.to_timestamp(datetime)
+1573204141055742
 
-It also allows lookups using name and fingerprint as a key.
-
-The fingerprint is CRC64 by default. You can also register a name with your own
-fingerprint.
-
-This library also allows consumers to look up the schema on demand from the
-Schema Registry using the name + fingerprint as the registry subject name.
-
-This library can optionally persist the cache data on disk using DETS,
-allowing programs to work without continuous access to the Schema Registry.
-
-## Performance
-
-Programs which use Kafka may process high message volumes, so efficiency
-is important. They generally use multiple processes, typically one per
-topic partion or more. On startup, each process may simultaneously attempt to
-look up schemas.
-
-The cache lookup runs in the caller's process, so it can run in parallel.
-If there is a cache miss, then it calls the GenServer to update the cache.
-This has the effect of serializing requests, ensuring that only one runs
-at a time. See https://www.cogini.com/blog/avoiding-genserver-bottlenecks/ for
-discussion.
-
-## Usage
-
+iex> datetime = AvroSchema.to_datetime(timestamp)
+~U[2019-11-08 09:09:01.055742Z]
+```
