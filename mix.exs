@@ -45,7 +45,8 @@ defmodule AvroSchema.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:confluent_schema_registry, github: "cogini/confluent_schema_registry"},
+      # {:confluent_schema_registry, github: "cogini/confluent_schema_registry"},
+      {:confluent_schema_registry, "~> 0.1"},
       {:credo, "~> 1.1", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 0.5", only: [:dev, :test], runtime: false},
       {:erlavro, "~> 2.8"},
