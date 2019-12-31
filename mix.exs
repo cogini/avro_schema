@@ -71,7 +71,7 @@ defmodule AvroSchema.MixProject do
       source_url: @github,
       extras: ["README.md", "CHANGELOG.md"],
       # api_reference: false,
-      source_url_pattern: "https://github.com/cogini/mix_deploy/blob/master/%{path}#L%{line}",
+      source_url_pattern: "#{@github}/blob/master/%{path}#L%{line}",
     ]
   end
 end
