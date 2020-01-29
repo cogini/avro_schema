@@ -104,7 +104,7 @@ numeric id to the same schema.
 
 This library provides functions to register schemas with the Schema Registry
 and look them up by id. It caches the results in RAM (ETS) for performance,
-and optionally also on disk (ETS). This gives good performance and allows
+and optionally also on disk (DETS). This gives good performance and allows
 programs to work without needing to communicate with the Schema Registry.
 Once read, the numeric IDs never change, so it's safe to cache them indefinitely.
 
