@@ -126,24 +126,24 @@ subject:
 
 ```elixir
 iex> schema_json = "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
-iex(5)> {:ok, ref} = AvroSchema.register_schema("test", schema_json)
+iex> subject = "test"
+iex> {:ok, ref} = AvroSchema.register_schema(subject, schema_json)
 {:ok, 21}
 ```
 
 The subject is a name which identifies the type of data. Multiple Kafka topics
 may carry the same data, so they have the same subject. It is normally the Avro
-"full name" (https://avro.apache.org/docs/1.8.2/spec.html#names), e.g.
+"[full name](https://avro.apache.org/docs/1.8.2/spec.html#names)", e.g.
 `com.example.X`. In an Avro schema, it is the "name" field.
 
 If the schema has already been registered, then the Schema Registry will
 return the current id. If you are registering a new version of the schema, then
 the Schema Registry will first check if it is compatible with the old one.
 Depending on the compatibility rules, it may reject the schema.
-TODO: link
 
 The producer next needs to get an encoder for the schema.
 
-The encoder is a function that takes a list of Avro key/value data and encodes
+The encoder is a function that takes Avro key/value data and encodes
 it to a binary.
 
 ```elixir
@@ -294,8 +294,6 @@ fingerprint.
 
 This library also allows consumers to look up the schema on demand from the
 Schema Registry using the name + fingerprint as the registry subject name.
-
-TODO:
 
 This library can optionally persist the cache data on disk using DETS,
 allowing programs to work without continuous access to the Schema Registry.
