@@ -3,8 +3,17 @@ defmodule AvroSchemaTest do
 
   # doctest AvroSchema
 
-  setup do
-    schema_json = "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
+  @default_schema "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
+  @null_schema "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"null\"}]}"
+
+  setup context do
+    schema_json =
+      case context[:schema] do
+        nil -> @default_schema
+        :null -> @null_schema
+        name -> raise "Schema #{inspect name} not provided"
+      end
+
     {:ok, schema} = AvroSchema.parse_schema(schema_json)
 
     {:ok, schema_json: schema_json, schema: schema}
@@ -105,6 +114,20 @@ defmodule AvroSchemaTest do
     assert {:ok, decoder} == AvroSchema.make_decoder(schema_json)
     assert {:ok, decoder} == AvroSchema.get_decoder({:confluent, 1})
     assert {:ok, encoder} == AvroSchema.get_encoder(ref)
+  end
+
+  @tag schema: :null
+  test "nil values are encoded for null schema values", %{schema_json: schema_json} do
+    {:ok, encoder} = AvroSchema.make_encoder(schema_json)
+
+    null_value = %{field1: :null}
+    nil_value = %{field1: nil}
+
+    encoded = AvroSchema.encode(null_value, encoder)
+    assert is_list(encoded)
+
+    encoded = AvroSchema.encode(nil_value, encoder)
+    assert is_list(encoded)
   end
 
   test "subject", %{schema_json: schema_json} do
