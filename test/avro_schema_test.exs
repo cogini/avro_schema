@@ -81,6 +81,44 @@ defmodule AvroSchemaTest do
     assert {:ok, schema} == AvroSchema.get_schema(ref)
   end
 
+  describe "encode/2" do
+    test "{:ok, binary()} for successful encodings", %{schema_json: schema_json} do
+      {:ok, encoder} = AvroSchema.make_encoder(schema_json)
+
+      data_atom_keys = %{field1: "hello", field2: 21}
+      assert {:ok, encoded} = AvroSchema.encode(data_atom_keys, encoder)
+      assert is_list(encoded)
+    end
+
+    test "{:error, String.t()} for unsuccessful encodings", %{schema_json: schema_json} do
+      {:ok, encoder} = AvroSchema.make_encoder(schema_json)
+
+      data_atom_keys = %{field1: 21, field2: 21}
+      assert {:error, %ErlangError{} = error} = AvroSchema.encode(data_atom_keys, encoder)
+      assert error.original == {:"$avro_encode_error", {:badmatch, {:error, {:type_mismatch, {:avro_primitive_type, "string", []}, 21}}}, [record: "test", field: "field1"]}
+    end
+  end
+
+  describe "encode!/2" do
+    test "binary() for successful encodings", %{schema_json: schema_json} do
+      {:ok, encoder} = AvroSchema.make_encoder(schema_json)
+
+      data_atom_keys = %{field1: "hello", field2: 21}
+      encoded = AvroSchema.encode!(data_atom_keys, encoder)
+      assert is_list(encoded)
+    end
+
+    test "raises for unsuccessful encodings", %{schema_json: schema_json} do
+      {:ok, encoder} = AvroSchema.make_encoder(schema_json)
+
+      data_atom_keys = %{field1: 21, field2: 21}
+
+      assert_raise ErlangError, fn ->
+        AvroSchema.encode!(data_atom_keys, encoder)
+      end
+    end
+  end
+
   test "encode/decode", %{schema_json: schema_json} do
     full_name = AvroSchema.full_name(schema_json)
     fp = AvroSchema.fingerprint_schema(schema_json)
@@ -92,7 +130,7 @@ defmodule AvroSchemaTest do
 
     data_binary_keys = %{"field1" => "hello", "field2" => 21}
     data_atom_keys = %{field1: "hello", field2: 21}
-    encoded = AvroSchema.encode(data_atom_keys, encoder)
+    encoded = AvroSchema.encode!(data_atom_keys, encoder)
     encoded_bin = IO.iodata_to_binary(encoded)
 
     tagged = AvroSchema.tag(encoded, fp)

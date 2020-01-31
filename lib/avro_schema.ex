@@ -286,8 +286,18 @@ defmodule AvroSchema do
   end
 
   @doc "Encode Avro data to binary."
-  @spec encode(map | [{binary, term}], fun) :: binary
+  @spec encode(map | [{binary, term}], fun) :: {:ok, binary} | {:error, term()}
   def encode(data, encoder) do
+    try do
+      {:ok, encoder.(data)}
+    rescue
+      error -> {:error, error}
+    end
+  end
+
+  @doc "Encode Avro data to binary, raises if there is an encoding error"
+  @spec encode!(map | [{binary, term}], fun) :: binary
+  def encode!(data, encoder) do
     encoder.(data)
   end
 
