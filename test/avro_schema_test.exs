@@ -4,14 +4,15 @@ defmodule AvroSchemaTest do
   # doctest AvroSchema
 
   setup do
-    schema_json = "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
+    schema_json =
+      "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
+
     {:ok, schema} = AvroSchema.parse_schema(schema_json)
 
     {:ok, schema_json: schema_json, schema: schema}
   end
 
   test "canonicalize_schema", %{schema_json: schema_json} do
-
     original_json = """
     {
       "type": "record",
@@ -30,9 +31,10 @@ defmodule AvroSchemaTest do
     }
     """
 
-    json = original_json
-           |> AvroSchema.canonicalize_schema()
-           |> AvroSchema.normalize_json()
+    json =
+      original_json
+      |> AvroSchema.canonicalize_schema()
+      |> AvroSchema.normalize_json()
 
     assert json == schema_json
   end
@@ -157,8 +159,9 @@ defmodule AvroSchemaTest do
 
   @tag :live_registry
   test "really interact with schema registry" do
+    schema_json =
+      "{\"name\":\"avro_schema\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
 
-    schema_json = "{\"name\":\"avro_schema\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
     {:ok, schema} = AvroSchema.parse_schema(schema_json)
     full_name = AvroSchema.full_name(schema)
 
@@ -169,5 +172,4 @@ defmodule AvroSchemaTest do
     assert result["error_code"] == 40_403
     # {:error, {:confluent_schema_registry, 0, :econnrefused}}
   end
-
 end

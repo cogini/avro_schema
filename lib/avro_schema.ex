@@ -27,7 +27,6 @@ defmodule AvroSchema do
   @typedoc "Tesla client"
   @type client() :: Tesla.Client.t()
 
-
   @doc """
   Tag Avro binary data with schema that created it.
 
@@ -59,6 +58,7 @@ defmodule AvroSchema do
     [<<0xC3, 0x01>>, fp, bin]
     # [<<0xC3, 0x01, fp::unsigned-little-64>>, bin]
   end
+
   def tag(bin, regid) when is_integer(regid) do
     [<<0, regid::unsigned-big-32>>, bin]
   end
@@ -81,13 +81,17 @@ defmodule AvroSchema do
     {:ok, {{:confluent, 7}, "hello"}}
   """
   @spec untag(iodata) ::
-    {:ok, {{:confluent, regid}, binary}} | {:ok, {{:avro, fp}, binary}} | {:error, :unknown_tag}
+          {:ok, {{:confluent, regid}, binary}}
+          | {:ok, {{:avro, fp}, binary}}
+          | {:error, :unknown_tag}
   def untag(<<0, regid::unsigned-big-32, data::binary>>) do
     {:ok, {{:confluent, regid}, data}}
   end
+
   def untag(<<0xC3, 0x01, fp::bytes-size(8), data::binary>>) do
     {:ok, {{:avro, fp}, data}}
   end
+
   def untag(_) do
     {:error, :unknown_tag}
   end
@@ -105,11 +109,12 @@ defmodule AvroSchema do
   to fetch the Avro schema via HTTP. If you need maximum performance, keep the
   result and reuse it for future requests with the same reference.
   """
-  @spec get_schema(ref) :: {:ok, :avro.avro_type} | {:error, term}
+  @spec get_schema(ref) :: {:ok, :avro.avro_type()} | {:error, term}
   def get_schema(ref) do
     case cache_lookup(ref) do
       nil ->
         GenServer.call(__MODULE__, {:get_schema, ref})
+
       value ->
         {:ok, value}
     end
@@ -133,17 +138,20 @@ defmodule AvroSchema do
       iex> :ok = AvroSchema.cache_schema(ref, schema)
       :ok
   """
-  @spec cache_schema(ref | list(ref), binary | :avro.avro_type, boolean) :: :ok | {:error, term}
+  @spec cache_schema(ref | list(ref), binary | :avro.avro_type(), boolean) :: :ok | {:error, term}
   def cache_schema(refs, schema, persistent \\ false)
+
   def cache_schema(refs, schema, persistent) when is_list(refs) do
     case process_schema(schema) do
       {:ok, value} ->
-        objects = Enum.map(refs, &({&1, value}))
+        objects = Enum.map(refs, &{&1, value})
         cache_insert(objects, persistent)
+
       {:error, reason} ->
         {:error, reason}
     end
   end
+
   def cache_schema(ref, schema, persistent), do: cache_schema([ref], schema, persistent)
 
   # TODO
@@ -161,6 +169,7 @@ defmodule AvroSchema do
     case cache_lookup({subject, schema}) do
       nil ->
         GenServer.call(__MODULE__, {:register_schema, subject, schema})
+
       value ->
         {:ok, value}
     end
@@ -184,16 +193,19 @@ defmodule AvroSchema do
 
   Creates a function which decodes a Avro encoded binary data to a map.
   """
-  @spec make_decoder(binary | :avro.avro_type, Keyword.t) :: {:ok, fun} | {:error, term}
+  @spec make_decoder(binary | :avro.avro_type(), Keyword.t()) :: {:ok, fun} | {:error, term}
   def make_decoder(schema, decoder_opts \\ [record_type: :map])
+
   def make_decoder(schema_json, decoder_opts) when is_binary(schema_json) do
     case parse_schema(schema_json) do
       {:ok, schema} ->
         make_decoder(schema, decoder_opts)
+
       error ->
         error
     end
   end
+
   def make_decoder(schema, decoder_opts) do
     {:ok, :avro.make_simple_decoder(schema, decoder_opts)}
   end
@@ -203,13 +215,15 @@ defmodule AvroSchema do
 
   Convenience function, calls `get_schema/1` on the id, then `make_decoder/2`.
   """
-  @spec get_decoder(ref | {:confluent, regid}, Keyword.t) :: {:ok, fun} | {:error, term}
+  @spec get_decoder(ref | {:confluent, regid}, Keyword.t()) :: {:ok, fun} | {:error, term}
   def get_decoder(ref, decoder_opts \\ [record_type: :map])
   def get_decoder({:confluent, regid}, decoder_opts), do: get_decoder(regid, decoder_opts)
+
   def get_decoder(ref, decoder_opts) do
     case get_schema(ref) do
       {:ok, schema} ->
         make_decoder(schema, decoder_opts)
+
       error ->
         error
     end
@@ -221,16 +235,19 @@ defmodule AvroSchema do
 
   Creates a function which encodes Avro terms to binary.
   """
-  @spec make_encoder(binary | :avro.avro_type, Keyword.t) :: {:ok, fun} | {:error, term}
+  @spec make_encoder(binary | :avro.avro_type(), Keyword.t()) :: {:ok, fun} | {:error, term}
   def make_encoder(schema_json, encoder_opts \\ [])
+
   def make_encoder(schema_json, encoder_opts) when is_binary(schema_json) do
     case parse_schema(schema_json) do
       {:ok, schema} ->
         make_encoder(schema, encoder_opts)
+
       error ->
         error
     end
   end
+
   def make_encoder(schema, encoder_opts) do
     {:ok, :avro.make_simple_encoder(schema, encoder_opts)}
   end
@@ -240,11 +257,12 @@ defmodule AvroSchema do
 
   Convenience function, calls `get_schema/1` on the id, then `make_encoder/2`.
   """
-  @spec get_encoder(ref, Keyword.t) :: {:ok, fun} | {:error, term}
+  @spec get_encoder(ref, Keyword.t()) :: {:ok, fun} | {:error, term}
   def get_encoder(ref, encoder_opts \\ []) do
     case get_schema(ref) do
       {:ok, schema} ->
         make_encoder(schema, encoder_opts)
+
       error ->
         error
     end
@@ -307,7 +325,7 @@ defmodule AvroSchema do
   """
   @spec create_fingerprint(binary) :: fp
   def create_fingerprint(binary) do
-    <<:avro.crc64_fingerprint(binary) :: little-size(64)>>
+    <<:avro.crc64_fingerprint(binary)::little-size(64)>>
   end
 
   @doc """
@@ -335,7 +353,7 @@ defmodule AvroSchema do
   end
 
   @doc "Encode parsed schema as JSON."
-  @spec encode_schema(:avro.avro_type, Keyword.t) :: binary
+  @spec encode_schema(:avro.avro_type(), Keyword.t()) :: binary
   def encode_schema(schema, opts \\ []) do
     :avro.encode_schema(schema, opts)
   end
@@ -352,11 +370,12 @@ defmodule AvroSchema do
 
   This is normally the same as the Schema Registry subject.
   "
-  @spec full_name(:avro.avro_type | binary) :: binary
+  @spec full_name(:avro.avro_type() | binary) :: binary
   def full_name(schema_json) when is_binary(schema_json) do
     {:ok, schema} = parse_schema(schema_json)
     full_name(schema)
   end
+
   def full_name({:avro_record_type, _, _, _, _, _, full_name, _}) do
     to_string(full_name)
   end
@@ -374,15 +393,16 @@ defmodule AvroSchema do
         {:avro_record_field, "field1", "", {:avro_primitive_type, "string", []},
           :undefined, :ascending, []},
   """
-  @spec parse_schema(binary) :: {:ok, :avro.avro_type} | {:error, term}
+  @spec parse_schema(binary) :: {:ok, :avro.avro_type()} | {:error, term}
   def parse_schema(json) do
     avro_type = :avro.decode_schema(json)
     lkup = :avro.make_lkup_fun(avro_type)
     {:ok, :avro.expand_type_bloated(avro_type, lkup)}
   rescue
     # e in RuntimeError -> {:error, e}
-    e in ArgumentError -> {:error, e.message}
-    # e in ErlangError -> {:error, e.original}
+    e in ArgumentError ->
+      {:error, e.message}
+      # e in ErlangError -> {:error, e.original}
   end
 
   @doc """
@@ -396,7 +416,7 @@ defmodule AvroSchema do
       iex> timestamp = AvroSchema.to_timestamp(datetime)
       1573204141055742
   """
-  @spec to_timestamp(DateTime.t) :: non_neg_integer
+  @spec to_timestamp(DateTime.t()) :: non_neg_integer
   def to_timestamp(date_time) do
     DateTime.to_unix(date_time, :microsecond)
   end
@@ -418,15 +438,19 @@ defmodule AvroSchema do
 
   Lists files in a directory matching an extension, default `avsc`.
   """
-  @spec get_schema_files(Path.t) :: {:ok, list(Path.t)} | {:error, File.posix}
+  @spec get_schema_files(Path.t()) :: {:ok, list(Path.t())} | {:error, File.posix()}
   def get_schema_files(dir, ext \\ "avsc") do
     {:ok, re} = Regex.compile("#{ext}$")
+
     case File.ls(dir) do
       {:ok, files} ->
-        paths = files
-                |> Enum.filter(&(Regex.match?(re, &1)))
-                |> Enum.map(&(Path.join(dir, &1)))
+        paths =
+          files
+          |> Enum.filter(&Regex.match?(re, &1))
+          |> Enum.map(&Path.join(dir, &1))
+
         {:ok, paths}
+
       error ->
         error
     end
@@ -450,7 +474,7 @@ defmodule AvroSchema do
 
   Deduplicates the fingerprints and aliases, then calls `cache_schema/3`.
   """
-  @spec cache_schema_file(Path.t, map) :: {:ok, list({binary, binary})} | {:error, term}
+  @spec cache_schema_file(Path.t(), map) :: {:ok, list({binary, binary})} | {:error, term}
   def cache_schema_file(path, subject_aliases \\ %{}) do
     {:ok, json} = File.read(path)
     {:ok, schema} = AvroSchema.parse_schema(json)
@@ -464,14 +488,18 @@ defmodule AvroSchema do
 
     primary_ref = {full_name, AvroSchema.create_fingerprint(normal_json)}
 
-    intermediate_refs = for bin <- [json, canon_json] do
-      {full_name, AvroSchema.create_fingerprint(bin)}
-    end
+    intermediate_refs =
+      for bin <- [json, canon_json] do
+        {full_name, AvroSchema.create_fingerprint(bin)}
+      end
 
     aliases = subject_aliases[full_name] || []
-    alias_refs = Enum.map(aliases, fn fp when is_binary(fp) -> {full_name, fp}
-      {_name, _fp} = a -> a
-    end)
+
+    alias_refs =
+      Enum.map(aliases, fn
+        fp when is_binary(fp) -> {full_name, fp}
+        {_name, _fp} = a -> a
+      end)
 
     refs = Enum.uniq([primary_ref] ++ intermediate_refs ++ alias_refs)
 
@@ -482,6 +510,7 @@ defmodule AvroSchema do
     case AvroSchema.cache_schema(refs, normal_json) do
       :ok ->
         {:ok, refs}
+
       error ->
         error
     end
@@ -520,28 +549,33 @@ defmodule AvroSchema do
 
     state = %{
       persistent: persistent,
-      client: client,
+      client: client
     }
 
     {:ok, state}
   end
 
   defp load_cache(nil), do: :ok
+
   defp load_cache(cache_dir) do
     path = to_charlist(Path.join(cache_dir, "#{@dets_table}.dets"))
-    case :dets.open_file(@dets_table, [file: path]) do
+
+    case :dets.open_file(@dets_table, file: path) do
       {:error, reason} ->
-        Logger.error("Error opening DETS file #{path}: #{inspect reason}")
+        Logger.error("Error opening DETS file #{path}: #{inspect(reason)}")
+
       {:ok, ref} ->
         # Logger.debug("DETS info #{inspect ref}: #{inspect :dets.info(ref)}")
         case :dets.to_ets(ref, @ets_table) do
           {:error, reason} ->
-            Logger.error("Error loading data from DETS table #{path}: #{inspect reason}")
+            Logger.error("Error loading data from DETS table #{path}: #{inspect(reason)}")
+
           _ ->
             # Logger.debug("Initialized ETS cache from DETS table #{path}")
             :ok
         end
     end
+
     :ok
   end
 
@@ -556,7 +590,15 @@ defmodule AvroSchema do
   def handle_call({:register_schema, subject, schema}, _from, state) do
     client = state[:client]
     persistent = state[:persistent]
-    response = cache_apply({subject, schema}, &do_register_schema/3, [client | [subject, schema]], persistent)
+
+    response =
+      cache_apply(
+        {subject, schema},
+        &do_register_schema/3,
+        [client | [subject, schema]],
+        persistent
+      )
+
     {:reply, response, state}
   end
 
@@ -564,47 +606,57 @@ defmodule AvroSchema do
   def terminate(_reason, %{persistent: true}) do
     case :dets.close(@dets_table) do
       {:error, message} ->
-        Logger.error("Error closing DETS table #{@dets_table}: #{inspect message}")
+        Logger.error("Error closing DETS table #{@dets_table}: #{inspect(message)}")
+
       :ok ->
         :ok
     end
   end
+
   def terminate(_reason, _state), do: :ok
 
   # Get schema from registry, parse and create encoder and decoder
-  @spec do_get_schema(client, ref) :: {:ok, :avro.avro_type} | {:error, term}
+  @spec do_get_schema(client, ref) :: {:ok, :avro.avro_type()} | {:error, term}
   defp do_get_schema(client, ref) when is_integer(ref) do
     case ConfluentSchemaRegistry.get_schema(client, ref) do
       {:ok, schema} ->
         process_schema(schema)
+
       {:error, code, reason} ->
         {:error, {:confluent_schema_registry, code, reason}}
     end
   end
+
   defp do_get_schema(client, {_name, _fp} = ref) do
     subject = make_subject(ref)
     # Fingerprint is unique, so version is always 1
     version = 1
+
     case ConfluentSchemaRegistry.get_schema(client, subject, version) do
       {:ok, %{"schema" => schema}} ->
         process_schema(schema)
+
       {:error, code, reason} ->
         {:error, {:confluent_schema_registry, code, reason}}
-      error -> error
+
+      error ->
+        error
     end
   end
 
   # Convert schema before storing in the cache
-  @spec process_schema(binary | :avro.avro_type) :: {:ok, :avro.avro_type} | {:error, term}
+  @spec process_schema(binary | :avro.avro_type()) :: {:ok, :avro.avro_type()} | {:error, term}
   defp process_schema(schema) when is_binary(schema), do: parse_schema(schema)
   defp process_schema(schema), do: {:ok, schema}
 
   @doc "Register schema"
-  @spec do_register_schema(client, subject, binary | :avro.avro_type) :: {:ok, regid} | {:error, term}
+  @spec do_register_schema(client, subject, binary | :avro.avro_type()) ::
+          {:ok, regid} | {:error, term}
   def do_register_schema(client, subject, schema) when is_binary(schema) do
     case ConfluentSchemaRegistry.register_schema(client, subject, schema) do
       {:ok, regid} ->
         {:ok, regid}
+
       {:error, code, reason} ->
         {:error, {:confluent_schema_registry, code, reason}}
     end
@@ -639,9 +691,11 @@ defmodule AvroSchema do
           {:ok, result} ->
             cache_insert([{key, result}], persistent)
             {:ok, result}
+
           error ->
             error
         end
+
       value ->
         # Logger.debug("cache_apply: #{inspect key} #{inspect value}")
         {:ok, value}
@@ -649,18 +703,20 @@ defmodule AvroSchema do
   end
 
   # Insert into ETS and optionally DETS
-  @spec cache_insert(list({ref, :avro.avro_type}), boolean) :: :ok | :error
+  @spec cache_insert(list({ref, :avro.avro_type()}), boolean) :: :ok | :error
   defp cache_insert(objects, persistent)
+
   defp cache_insert(objects, true) do
     ets_insert(objects)
     dets_insert(objects)
   end
+
   defp cache_insert(objects, _) do
     ets_insert(objects)
   end
 
   # Put value in ETS cache
-  @spec ets_insert(list({ref, :avro.avro_type})) :: :ok | :error
+  @spec ets_insert(list({ref, :avro.avro_type()})) :: :ok | :error
   defp ets_insert(objects) do
     # Logger.debug("ETS insert #{inspect key} = #{inspect value}")
     # Logger.debug("ETS insert #{inspect key}")
@@ -676,7 +732,7 @@ defmodule AvroSchema do
   end
 
   # Put value in DETS cache
-  @spec dets_insert(list({ref, :avro.avro_type})) :: :ok | :error
+  @spec dets_insert(list({ref, :avro.avro_type()})) :: :ok | :error
   defp dets_insert(objects) do
     # Logger.debug("DETS insert #{inspect key} = #{inspect value}")
     # Logger.debug("DETS insert #{inspect key}")
@@ -686,13 +742,19 @@ defmodule AvroSchema do
       case :dets.insert(@dets_table, objects) do
         :ok ->
           :ok
+
         {:error, reason} ->
-          Logger.warn("Could not insert into DETS table #{@dets_table} #{inspect reason} #{inspect objects}")
+          Logger.warn(
+            "Could not insert into DETS table #{@dets_table} #{inspect(reason)} #{
+              inspect(objects)
+            }"
+          )
+
           :error
       end
     catch
       :error, :badarg ->
-        Logger.warn("Could not insert into DETS table #{@dets_table} badarg #{inspect objects}")
+        Logger.warn("Could not insert into DETS table #{@dets_table} badarg #{inspect(objects)}")
         :error
     end
   end
@@ -700,6 +762,6 @@ defmodule AvroSchema do
   @doc false
   # Dump cache
   def dump do
-    :ets.foldl(fn (entry, acc) -> [entry | acc] end, [], @ets_table)
+    :ets.foldl(fn entry, acc -> [entry | acc] end, [], @ets_table)
   end
 end
