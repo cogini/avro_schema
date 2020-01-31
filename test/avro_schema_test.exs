@@ -92,7 +92,8 @@ defmodule AvroSchemaTest do
       {:ok, encoder} = AvroSchema.make_encoder(schema_json)
 
       data_atom_keys = %{field1: 21, field2: 21}
-      assert {:error, %ErlangError{}} = AvroSchema.encode(data_atom_keys, encoder)
+      assert {:error, %ErlangError{} = error} = AvroSchema.encode(data_atom_keys, encoder)
+      assert error.original == {:"$avro_encode_error", {:badmatch, {:error, {:type_mismatch, {:avro_primitive_type, "string", []}, 21}}}, [record: "test", field: "field1"]}
     end
   end
 
