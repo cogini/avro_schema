@@ -161,10 +161,10 @@ defmodule AvroSchemaTest do
     null_value = %{field1: :null}
     nil_value = %{field1: nil}
 
-    encoded = AvroSchema.encode(null_value, encoder)
+    {:ok, encoded} = AvroSchema.encode(null_value, encoder)
     assert is_list(encoded)
 
-    encoded = AvroSchema.encode(nil_value, encoder)
+    {:ok, encoded} = AvroSchema.encode(nil_value, encoder)
     assert is_list(encoded)
   end
 
