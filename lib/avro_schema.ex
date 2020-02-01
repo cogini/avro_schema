@@ -738,7 +738,6 @@ defmodule AvroSchema do
     ets_insert(objects)
   end
 
-
   # Put value in ETS cache
   @spec ets_insert(cache_value()) :: :ok | :error
   defp ets_insert(objects) do
