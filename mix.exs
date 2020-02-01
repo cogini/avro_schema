@@ -23,7 +23,7 @@ defmodule AvroSchema.MixProject do
         "coveralls.html": :test
       ],
       dialyzer: [
-        plt_add_apps: [:erlavro, :tesla]
+        plt_add_apps: [:erlavro, :tesla, :ex_unit, :mix]
         # plt_add_deps: true,
         # flags: ["-Werror_handling", "-Wrace_conditions"],
         # flags: ["-Wunmatched_returns", :error_handling, :race_conditions, :underspecs],
