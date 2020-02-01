@@ -24,6 +24,9 @@ defmodule AvroSchema do
   @typedoc "Cache key"
   @type ref() :: regid() | {subject(), fp()}
 
+  @typedoc "Cache value"
+  @type cache_value :: list({ref, :avro.avro_type()}) | {{binary(), binary()}, integer()}
+
   @typedoc "Tesla client"
   @type client() :: Tesla.Client.t()
 
@@ -185,7 +188,7 @@ defmodule AvroSchema do
   `register_schema/1` will then return the id without needing to communicate
   with the the Schema Registry.
   """
-  @spec cache_registration(subject, binary, regid, boolean) :: :ok | {:error, term}
+  @spec cache_registration(binary(), binary(), integer(), boolean()) :: :ok | :error
   def cache_registration(subject, schema, regid, persistent \\ false) when is_binary(schema) do
     cache_insert({{subject, schema}, regid}, persistent)
   end
@@ -196,7 +199,7 @@ defmodule AvroSchema do
   Creates a function which decodes a Avro encoded binary data to a map.
   """
   @spec make_decoder(binary | :avro.avro_type(), Keyword.t()) :: {:ok, fun} | {:error, term}
-  def make_decoder(schema, decoder_opts \\ [record_type: :map, map_type: :map])
+  def make_decoder(schema, decoder_opts \\ [record_type: :map])
 
   def make_decoder(schema_json, decoder_opts) when is_binary(schema_json) do
     case parse_schema(schema_json) do
@@ -715,7 +718,15 @@ defmodule AvroSchema do
   end
 
   # Insert into ETS and optionally DETS
-  @spec cache_insert(list({ref, :avro.avro_type()}), boolean) :: :ok | :error
+  @spec cache_insert(cache_value(), boolean) :: :ok | :error
+  # defp cache_insert(objects, persistent?) do
+  #   ets_insert(objects)
+
+  #   if persistent? do
+  #     dets_insert(objects)
+  #   end
+  # end
+
   defp cache_insert(objects, persistent)
 
   defp cache_insert(objects, true) do
@@ -727,8 +738,9 @@ defmodule AvroSchema do
     ets_insert(objects)
   end
 
+
   # Put value in ETS cache
-  @spec ets_insert(list({ref, :avro.avro_type()})) :: :ok | :error
+  @spec ets_insert(cache_value()) :: :ok | :error
   defp ets_insert(objects) do
     # Logger.debug("ETS insert #{inspect key} = #{inspect value}")
     # Logger.debug("ETS insert #{inspect key}")
@@ -744,7 +756,7 @@ defmodule AvroSchema do
   end
 
   # Put value in DETS cache
-  @spec dets_insert(list({ref, :avro.avro_type()})) :: :ok | :error
+  @spec dets_insert(cache_value()) :: :ok | :error
   defp dets_insert(objects) do
     # Logger.debug("DETS insert #{inspect key} = #{inspect value}")
     # Logger.debug("DETS insert #{inspect key}")
