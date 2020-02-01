@@ -1,0 +1,141 @@
+version: 2.1
+executors:
+  avro_schema:
+    docker:
+      - image: circleci/elixir:1.10.0
+        environment:
+          MIX_ENV: test
+          CI_FORMATTING: true
+    working_directory: ~/repo
+jobs:
+  build:
+    executor: avro_schema
+    steps:
+      - checkout
+      - run: mix local.hex --force
+      - run: mix local.rebar --force
+      - run: elixir -v
+
+      - restore_cache: # restores saved mix cache
+          keys: # list of cache keys, in decreasing specificity
+            - v1-mix-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
+            - v1-mix-cache-{{ .Branch }}
+            - v1-mix-cache
+      - restore_cache: # restores saved build cache
+          keys:
+            - v1-build-cache-{{ .Branch }}
+            - v1-build-cache
+
+      # Fetch and Compile Elixir deps
+      - run: mix do deps.get, deps.compile
+
+      # Compile app
+      - run: mix compile
+
+      ## deps
+      - save_cache: # generate and store cache so `restore_cache` works
+          key: v1-mix-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
+          paths: "deps"
+      - save_cache: # make another less specific cache
+          key: v1-mix-cache-{{ .Branch }}
+          paths: "deps"
+      - save_cache: # you should really save one more cache just in case
+          key: v1-mix-cache
+          paths: "deps"
+
+      ## _build
+      - save_cache: # don't forget to save a *build* cache, too
+          key: v1-build-cache-{{ .Branch }}
+          paths: "_build"
+      - save_cache: # and one more build cache for good measure
+          key: v1-build-cache
+          paths: "_build"
+
+  unit_test_elixir:
+    executor: avro_schema
+    steps:
+      - checkout
+
+      - run: mix local.hex --force
+      - run: mix local.rebar --force
+
+      # Setup test DB
+      - restore_cache: # restores saved mix cache
+          keys: # list of cache keys, in decreasing specificity
+            - v1-mix-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
+            - v1-mix-cache-{{ .Branch }}
+            - v1-mix-cache
+      - restore_cache: # restores saved build cache
+          keys:
+            - v1-build-cache-{{ .Branch }}
+            - v1-build-cache
+
+      - run: mix test
+
+      - store_test_results: # upload test results for display in Test Summary
+          path: /tmp/test-results
+
+  lint_elixir:
+    executor: avro_schema
+    steps:
+      - checkout
+
+      - run: mix local.hex --force
+      - run: mix local.rebar --force
+
+      - restore_cache: # restores saved mix cache
+          keys: # list of cache keys, in decreasing specificity
+            - v1-mix-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
+            - v1-mix-cache-{{ .Branch }}
+            - v1-mix-cache
+      - restore_cache: # restores saved build cache
+          keys:
+            - v1-build-cache-{{ .Branch }}
+            - v1-build-cache
+
+      - run: mix format --check-formatted
+
+  dialyzer:
+    executor: avro_schema
+    steps:
+      - checkout
+
+      - run: mix local.hex --force
+      - run: mix local.rebar --force
+      - restore_cache: # restores saved mix cache
+          keys: # list of cache keys, in decreasing specificity
+            - v1-mix-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
+            - v1-mix-cache-{{ .Branch }}
+            - v1-mix-cache
+      - restore_cache: # restores saved build cache
+          keys:
+            - v1-build-cache-{{ .Branch }}
+            - v1-build-cache
+
+      - restore_cache:
+          keys:
+            - v1-plt-cache-{{ checksum "mix.lock" }}
+            - v1-plt-cache
+      - run: mix dialyzer --plt
+      - save_cache:
+          key: v1-plt-cache-{{ checksum "mix.lock" }}
+          paths:
+            - _build
+            - ~/.mix
+
+      - run: mix dialyzer --halt-exit-status
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build
+      - unit_test_elixir:
+          requires:
+            - build
+      - lint_elixir:
+          requires:
+            - build
+      - dialyzer:
+          requires:
+            - build
