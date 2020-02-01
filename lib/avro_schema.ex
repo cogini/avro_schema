@@ -33,8 +33,10 @@ defmodule AvroSchema do
   Adds a tag to the front of data indicating the schema that was used
   to encode it.
 
-  Uses [Confluent wire format](https://docs.confluent.io/current/schema-registry/serializer-formatter.html#wire-format)
-  for integer registry IDs and [Avro single object encoding](https://avro.apache.org/docs/1.8.2/spec.html#single_object_encoding_spec)
+  Uses
+  [Confluent wire format](https://docs.confluent.io/current/schema-registry/serializer-formatter.html#wire-format)
+  for integer registry IDs and
+  [Avro single object encoding](https://avro.apache.org/docs/1.8.2/spec.html#single_object_encoding_spec)
   for fingerprints.
 
   This function matches schema IDs as integers and encodes them using Confluent
@@ -194,7 +196,7 @@ defmodule AvroSchema do
   Creates a function which decodes a Avro encoded binary data to a map.
   """
   @spec make_decoder(binary | :avro.avro_type(), Keyword.t()) :: {:ok, fun} | {:error, term}
-  def make_decoder(schema, decoder_opts \\ [record_type: :map])
+  def make_decoder(schema, decoder_opts \\ [record_type: :map, map_type: :map])
 
   def make_decoder(schema_json, decoder_opts) when is_binary(schema_json) do
     case parse_schema(schema_json) do
