@@ -199,7 +199,7 @@ defmodule AvroSchema do
   Creates a function which decodes a Avro encoded binary data to a map.
   """
   @spec make_decoder(binary | :avro.avro_type(), Keyword.t()) :: {:ok, fun} | {:error, term}
-  def make_decoder(schema, decoder_opts \\ [record_type: :map])
+  def make_decoder(schema, decoder_opts \\ [record_type: :map, map_type: :map])
 
   def make_decoder(schema_json, decoder_opts) when is_binary(schema_json) do
     case parse_schema(schema_json) do
@@ -221,7 +221,7 @@ defmodule AvroSchema do
   Convenience function, calls `get_schema/1` on the id, then `make_decoder/2`.
   """
   @spec get_decoder(ref | {:confluent, regid}, Keyword.t()) :: {:ok, fun} | {:error, term}
-  def get_decoder(ref, decoder_opts \\ [record_type: :map])
+  def get_decoder(ref, decoder_opts \\ [record_type: :map, map_type: :map])
   def get_decoder({:confluent, regid}, decoder_opts), do: get_decoder(regid, decoder_opts)
 
   def get_decoder(ref, decoder_opts) do

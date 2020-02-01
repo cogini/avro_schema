@@ -5,12 +5,14 @@ defmodule AvroSchemaTest do
 
   @default_schema "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
   @null_schema "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"null\"}]}"
+  @map_schema "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"map_field\",\"type\":{\"type\":\"map\",\"values\":\"int\"}}]}"
 
   setup context do
     schema_json =
       case context[:schema] do
         nil -> @default_schema
         :null -> @null_schema
+        :map -> @map_schema
         name -> raise "Schema #{inspect(name)} not provided"
       end
 
@@ -127,6 +129,22 @@ defmodule AvroSchemaTest do
       assert_raise ErlangError, fn ->
         AvroSchema.encode!(data_atom_keys, encoder)
       end
+    end
+  end
+
+  describe "decode/2" do
+    @tag schema: :map
+    test "it can decode map values as maps by default", %{schema_json: schema_json} do
+      {:ok, encoder} = AvroSchema.make_encoder(schema_json)
+      {:ok, decoder} = AvroSchema.make_decoder(schema_json)
+
+      data = %{map_field: %{"one" => 1, "two" => 2}}
+
+      assert {:ok, encoded} = AvroSchema.encode(data, encoder)
+
+      output = AvroSchema.decode(encoded, decoder)
+
+      assert output == %{"map_field" => %{"one" => 1, "two" => 2}}
     end
   end
 
