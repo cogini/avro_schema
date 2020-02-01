@@ -719,6 +719,7 @@ defmodule AvroSchema do
 
   # Insert into ETS and optionally DETS
   @spec cache_insert(cache_value(), boolean) :: :ok | :error
+
   # defp cache_insert(objects, persistent?) do
   #   ets_insert(objects)
 
