@@ -21,6 +21,8 @@ defmodule AvroSchema do
   @typedoc "Fingerprint, normally CRC-64-AVRO but could be e.g. MD5"
   @type fp() :: binary()
 
+  @type decoded() :: map | [{binary, term}]
+
   @typedoc "Cache key"
   @type ref() :: regid() | {subject(), fp()}
 
@@ -285,8 +287,18 @@ defmodule AvroSchema do
   # end
 
   @doc "Decode binary Avro data."
-  @spec decode(binary, fun) :: map | [{binary, term}]
+  @spec decode(binary, fun) :: {:ok, decoded()} | {:error, term()}
   def decode(bin, decoder) do
+    try do
+      {:ok, decoder.(bin)}
+    rescue
+      error -> {:error, error}
+    end
+  end
+
+  @doc "Decode binary Avro data, raises if there is a decoding error"
+  @spec decode!(binary, fun) :: decoded()
+  def decode!(bin, decoder) do
     decoder.(bin)
   end
 

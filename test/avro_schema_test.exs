@@ -133,6 +133,29 @@ defmodule AvroSchemaTest do
   end
 
   describe "decode/2" do
+    test "returns {:ok, data} for successful decodings", %{schema_json: schema_json} do
+      {:ok, encoder} = AvroSchema.make_encoder(schema_json)
+      {:ok, decoder} = AvroSchema.make_decoder(schema_json)
+
+      data_atom_keys = %{field1: "hello", field2: 21}
+      encoded = AvroSchema.encode!(data_atom_keys, encoder)
+
+      assert {:ok, data} = AvroSchema.decode(encoded, decoder)
+      assert data == %{"field1" => "hello", "field2" => 21}
+    end
+
+    test "returns {:error, error} for unsuccessful decodings", %{schema_json: schema_json} do
+      {:ok, null_schema} = AvroSchema.parse_schema(@null_schema)
+      {:ok, encoder} = AvroSchema.make_encoder(schema_json)
+      {:ok, decoder} = AvroSchema.make_decoder(null_schema)
+
+      data_atom_keys = %{field1: "hello", field2: 21}
+      encoded = AvroSchema.encode!(data_atom_keys, encoder)
+
+      assert {:error, %MatchError{term: term}} = AvroSchema.decode(encoded, decoder)
+      assert term == {%{"field1" => :null}, "\nhello*"}
+    end
+
     @tag schema: :map
     test "it can decode map values as maps by default", %{schema_json: schema_json} do
       {:ok, encoder} = AvroSchema.make_encoder(schema_json)
@@ -142,9 +165,35 @@ defmodule AvroSchemaTest do
 
       assert {:ok, encoded} = AvroSchema.encode(data, encoder)
 
-      output = AvroSchema.decode(encoded, decoder)
+      assert {:ok, output} = AvroSchema.decode(encoded, decoder)
 
       assert output == %{"map_field" => %{"one" => 1, "two" => 2}}
+    end
+  end
+
+  describe "decode!/2" do
+    test "returns data for successful decodings", %{schema_json: schema_json} do
+      {:ok, encoder} = AvroSchema.make_encoder(schema_json)
+      {:ok, decoder} = AvroSchema.make_decoder(schema_json)
+
+      data_atom_keys = %{field1: "hello", field2: 21}
+      encoded = AvroSchema.encode!(data_atom_keys, encoder)
+
+      data = AvroSchema.decode!(encoded, decoder)
+      assert data == %{"field1" => "hello", "field2" => 21}
+    end
+
+    test "raises for unsuccessful decodings", %{schema_json: schema_json} do
+      {:ok, null_schema} = AvroSchema.parse_schema(@null_schema)
+      {:ok, encoder} = AvroSchema.make_encoder(schema_json)
+      {:ok, decoder} = AvroSchema.make_decoder(null_schema)
+
+      data_atom_keys = %{field1: "hello", field2: 21}
+      encoded = AvroSchema.encode!(data_atom_keys, encoder)
+
+      assert_raise MatchError, fn ->
+        AvroSchema.decode!(encoded, decoder)
+      end
     end
   end
 
@@ -168,8 +217,8 @@ defmodule AvroSchemaTest do
     assert {:ok, {{:avro, fp}, encoded_bin}} == AvroSchema.untag(tagged_bin)
 
     {:ok, decoder} = AvroSchema.get_decoder({full_name, fp})
-    assert data_binary_keys == AvroSchema.decode(encoded_bin, decoder)
-    assert data_binary_keys == AvroSchema.decode(encoded, decoder)
+    assert data_binary_keys == AvroSchema.decode!(encoded_bin, decoder)
+    assert data_binary_keys == AvroSchema.decode!(encoded, decoder)
 
     assert {:ok, decoder} == AvroSchema.make_decoder(schema_json)
     assert {:ok, decoder} == AvroSchema.get_decoder({:confluent, 1})
