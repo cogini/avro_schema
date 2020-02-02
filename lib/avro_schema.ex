@@ -198,7 +198,8 @@ defmodule AvroSchema do
   @doc """
   Make Avro decoder for schema.
 
-  Creates a function which decodes a Avro encoded binary data to a map.
+  Creates a function which decodes a Avro encoded binary data to a map. By default,
+  a `:hook` option is provided that will convert all `:null` values to `nil`.
   """
   @spec make_decoder(binary | :avro.avro_type(), Keyword.t()) :: {:ok, fun} | {:error, term}
   def make_decoder(schema, decoder_opts \\ [record_type: :map, map_type: :map])
@@ -214,6 +215,7 @@ defmodule AvroSchema do
   end
 
   def make_decoder(schema, decoder_opts) do
+    decoder_opts = Keyword.put_new(decoder_opts, :hook, &decoder_hook/4)
     {:ok, :avro.make_simple_decoder(schema, decoder_opts)}
   end
 
@@ -233,6 +235,13 @@ defmodule AvroSchema do
 
       error ->
         error
+    end
+  end
+
+  defp decoder_hook(type, _sub_info, data, decode_fn) do
+    case :avro.get_type_name(type) do
+      "null" -> {nil, data}
+      _ -> decode_fn.(data)
     end
   end
 
