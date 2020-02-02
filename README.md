@@ -1,3 +1,5 @@
+[![CircleCI](https://circleci.com/gh/cogini/avro_schema.svg?style=svg)](https://app.circleci.com/github/cogini/avro_schema/pipelines)
+
 # AvroSchema
 
 This is a library for working with [Avro](https://avro.apache.org/)
