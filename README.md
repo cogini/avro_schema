@@ -160,7 +160,7 @@ Next we encode some data:
 
 ```elixir
 iex> data = %{field1: "hello", field2: 100}
-iex> encoded = AvroSchema.encode(data, encoder)
+iex> encoded = AvroSchema.encode!(data, encoder)
 [['\n', "hello"], [200, 1]]
 ```
 
@@ -226,7 +226,7 @@ Create a decoder and decode the data:
 iex> {:ok, decoder} = AvroSchema.make_decoder(schema)
 {:ok, #Function<4.110795165/1 in :avro.make_simple_decoder/2>}
 
-iex> decoded = AvroSchema.decode(bin, decoder)
+iex> decoded = AvroSchema.decode!(bin, decoder)
 %{"field1" => "hello", "field2" => 100}
 ```
 
@@ -280,7 +280,7 @@ Decoding works the same as with the Schema Registry:
 iex> {:ok, decoder} = AvroSchema.make_decoder(schema)
 {:ok, #Function<4.110795165/1 in :avro.make_simple_decoder/2>}
 
-iex> decoded = AvroSchema.decode(bin, decoder)
+iex> decoded = AvroSchema.decode!(bin, decoder)
 %{"field1" => "hello", "field2" => 100}
 ```
 
