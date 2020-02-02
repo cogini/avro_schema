@@ -9,7 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Make `encode/2` return `{:ok, binary} | {:error, term()}` and add new `encode!/2`,
   https://github.com/cogini/avro_schema/pull/6
+- Make `decode/2` return `{:ok, binary} | {:error, term()}` and add new `decode!/2`,
+  https://github.com/cogini/avro_schema/pull/14
 - Make `make_decoder/2` return maps as map type by default
+  https://github.com/cogini/avro_schema/pull/13
+- Make `make_decoder/2` decodes "null" schema types as `nil` by default
+  https://github.com/cogini/avro_schema/pull/16
 - Encode nil values correctly for :null schema types,
   https://github.com/cogini/avro_schema/pull/8
 
