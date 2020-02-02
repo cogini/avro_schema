@@ -5,6 +5,7 @@ defmodule AvroSchemaTest do
 
   @default_schema "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
   @null_schema "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"null\"}]}"
+  @nested_null_schema "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"null\"},{\"name\":\"field2\",\"type\":[\"string\",\"null\"]},{\"name\":\"field3\",\"type\":{\"name\":\"NestedRecord\",\"type\":\"record\",\"fields\":[{\"name\":\"nested\",\"type\":\"null\"}]}}]}"
   @map_schema "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"map_field\",\"type\":{\"type\":\"map\",\"values\":\"int\"}}]}"
 
   setup context do
@@ -12,6 +13,7 @@ defmodule AvroSchemaTest do
       case context[:schema] do
         nil -> @default_schema
         :null -> @null_schema
+        :nested_null -> @nested_null_schema
         :map -> @map_schema
         name -> raise "Schema #{inspect(name)} not provided"
       end
@@ -153,7 +155,7 @@ defmodule AvroSchemaTest do
       encoded = AvroSchema.encode!(data_atom_keys, encoder)
 
       assert {:error, %MatchError{term: term}} = AvroSchema.decode(encoded, decoder)
-      assert term == {%{"field1" => :null}, "\nhello*"}
+      assert term == {%{"field1" => nil}, "\nhello*"}
     end
 
     @tag schema: :map
@@ -168,6 +170,32 @@ defmodule AvroSchemaTest do
       assert {:ok, output} = AvroSchema.decode(encoded, decoder)
 
       assert output == %{"map_field" => %{"one" => 1, "two" => 2}}
+    end
+
+    @tag schema: :null
+    test "it can decode null values to nil", %{schema_json: schema_json} do
+      {:ok, encoder} = AvroSchema.make_encoder(schema_json)
+      {:ok, decoder} = AvroSchema.make_decoder(schema_json)
+
+      data = %{field1: nil}
+
+      assert {:ok, encoded} = AvroSchema.encode(data, encoder)
+      assert {:ok, output} = AvroSchema.decode(encoded, decoder)
+
+      assert output == %{"field1" => nil}
+    end
+
+    @tag schema: :nested_null
+    test "it can decode nested null values to nil", %{schema_json: schema_json} do
+      {:ok, encoder} = AvroSchema.make_encoder(schema_json)
+      {:ok, decoder} = AvroSchema.make_decoder(schema_json)
+
+      data = %{field1: nil, field2: nil, field3: %{nested: nil}}
+
+      assert {:ok, encoded} = AvroSchema.encode(data, encoder)
+      assert {:ok, output} = AvroSchema.decode(encoded, decoder)
+
+      assert output == %{"field1" => nil, "field2" => nil, "field3" => %{"nested" => nil}}
     end
   end
 
