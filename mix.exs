@@ -66,7 +66,7 @@ defmodule AvroSchema.MixProject do
 
   defp package do
     [
-      maintainers: ["Jake Morrison"],
+      maintainers: ["Jake Morrison", "Dave Lucia"],
       licenses: ["Apache 2.0"],
       links: %{"GitHub" => @github}
     ]
