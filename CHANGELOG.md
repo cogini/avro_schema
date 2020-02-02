@@ -13,9 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   https://github.com/cogini/avro_schema/pull/14
 - Make `make_decoder/2` return maps as map type by default
   https://github.com/cogini/avro_schema/pull/13
-- Make `make_decoder/2` decodes "null" schema types as `nil` by default
+- Make `make_decoder/2` decodes "null" schema types as `nil` by default by
+  providing a decoder hook
   https://github.com/cogini/avro_schema/pull/16
-- Encode nil values correctly for :null schema types,
+- Encode nil values correctly for "null" schema types,
   https://github.com/cogini/avro_schema/pull/8
 
 ## [0.1.0] - 2019-12-31
