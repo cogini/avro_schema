@@ -1,4 +1,9 @@
+
 # AvroSchema
+
+---
+
+[![CircleCI](https://circleci.com/gh/cogini/avro_schema.svg?style=svg)](https://app.circleci.com/github/cogini/avro_schema/pipelines)
 
 This is a library for working with [Avro](https://avro.apache.org/)
 schemas and the [Confluent® Schema Registry](https://www.confluent.io/confluent-schema-registry),
