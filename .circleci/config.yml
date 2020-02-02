@@ -124,7 +124,28 @@ jobs:
             - ~/.mix
 
       - run: mix dialyzer --halt-exit-status
+  credo:
+    executor: avro_schema
+    steps:
+      - checkout
 
+      - run: mix local.hex --force
+      - run: mix local.rebar --force
+      - restore_cache: # restores saved mix cache
+          keys: # list of cache keys, in decreasing specificity
+            - v1-mix-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
+            - v1-mix-cache-{{ .Branch }}
+            - v1-mix-cache
+      - restore_cache: # restores saved build cache
+          keys:
+            - v1-build-cache-{{ .Branch }}
+            - v1-build-cache
+
+      - restore_cache:
+          keys:
+            - v1-plt-cache-{{ checksum "mix.lock" }}
+            - v1-plt-cache
+      - run: mix credo
 workflows:
   version: 2
   build_and_test:
@@ -137,5 +158,8 @@ workflows:
           requires:
             - build
       - dialyzer:
+          requires:
+            - build
+      - credo:
           requires:
             - build

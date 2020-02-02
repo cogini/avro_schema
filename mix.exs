@@ -52,7 +52,7 @@ defmodule AvroSchema.MixProject do
     [
       # {:confluent_schema_registry, github: "cogini/confluent_schema_registry"},
       {:confluent_schema_registry, "~> 0.1"},
-      {:credo, "~> 1.1", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.2", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 0.5", only: [:dev, :test], runtime: false},
       {:erlavro, git: "https://github.com/klarna/erlavro.git", tag: "2.8.2"},
       {:ex_doc, "~> 0.19.2", only: :dev, runtime: false},
