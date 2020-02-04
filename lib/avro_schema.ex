@@ -133,7 +133,7 @@ defmodule AvroSchema do
   Inserts the schema in the local cache under one or more references.
 
   `get_schema/1` will then return the schema without needing to communicate
-  with the the Schema Registry.
+  with the Schema Registry.
 
   ## Examples
 
@@ -188,7 +188,7 @@ defmodule AvroSchema do
   Inserts the schema in the local cache.
 
   `register_schema/1` will then return the id without needing to communicate
-  with the the Schema Registry.
+  with the Schema Registry.
   """
   @spec cache_registration(binary(), binary(), integer(), boolean()) :: :ok | :error
   def cache_registration(subject, schema, regid, persistent \\ false) when is_binary(schema) do
@@ -417,7 +417,7 @@ defmodule AvroSchema do
   end
 
   @doc """
-  Parse schema into avro library internal form.
+  Parse schema into Avro library internal form.
 
   ## Examples
 
@@ -442,7 +442,7 @@ defmodule AvroSchema do
   end
 
   @doc """
-  Convert DateTime to Avro integer timestamp with ms precision.
+  Convert `DateTime` to Avro integer timestamp with ms precision.
 
   ## Examples
 
@@ -458,7 +458,7 @@ defmodule AvroSchema do
   end
 
   @doc """
-  Convert Avro integer timestamp to DateTime.
+  Convert Avro integer timestamp to `DateTime`.
 
       iex> timestamp = 1573204141055742
       iex> datetime = AvroSchema.to_datetime(timestamp)
