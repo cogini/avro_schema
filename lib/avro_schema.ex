@@ -404,7 +404,7 @@ defmodule AvroSchema do
   @doc "
   Get full name field from schema.
 
-  This is normally the same as the Schema Registry subject.
+  This can be used as the Schema Registry subject.
   "
   @spec full_name(:avro.avro_type() | binary) :: binary
   def full_name(schema_json) when is_binary(schema_json) do
