@@ -94,14 +94,17 @@ implemented in `fingerprint_schema/1`.
 In a relatively static system, it's not too hard to exchange schema files
 between producers and consumers. When things are changing more frequently, it
 can be difficult to keep files up to date. It's also easy for insignificant
-differences such as whitespace to result in a different schema hashes.
+differences such as whitespace to result in different schema hashes.
 
 The Schema Registry solves this by providing a centralized service which
 producers and consumers can call to get a unique identifier for a schema
 version. Producers register a schema with the service and get an id.
-Consumers look up the id to get the schema. The Schema Registry also
-does validation on new schemas to ensure that they meet the backwards
-compatibility policy for the organization.
+Consumers look up the id to get the schema.
+
+The Schema Registry also does validation on new schemas to ensure that they
+meet a backwards compatibility policy for the organization.
+This helps you to [evolve schemas](https://docs.confluent.io/current/schema-registry/avro.html)
+over time and deploy them without breaking running applications.
 
 The disadvantage of the Schema Registry is that it can be a single point
 of failure. Different schema registries will in general assign a different
@@ -115,19 +118,37 @@ Once read, the numeric IDs never change, so it's safe to cache them indefinitely
 
 The library also has support for managing schemas from files. It can add files
 to the cache by fingerprint, registering the same schema under multiple
-fingerprints, i.e. the raw JSON, a version in [Parsing Canonical
-Form](https://avro.apache.org/docs/current/spec.html#Parsing+Canonical+Form+for+Schemas)
+fingerprints, i.e. the raw JSON, a version in
+[Parsing Canonical Form](https://avro.apache.org/docs/current/spec.html#Parsing+Canonical+Form+for+Schemas)
 and with whitespace stripped out. You can also manually register aliases for the
 name and fingerprint to handle legacy data.
 
 ## Kafka producer example
 
 A Kafka producer program needs to be able to encode the data with an Avro
-schema and tag it with the schema ID or fingerprint. It normally stores the
-schema in the code or reads it from a file.
+schema and tag it with the schema ID or fingerprint. It may store the
+schema in the code or read it from a file, or it may look it up from the Schema
+Registry using the subject.
 
-It can then call the Schema Registry to get the ID matching the Avro schema and
-subject:
+The subject is a registered name which identifies the type of data.
+There are are several [standard strategies](https://docs.confluent.io/current/schema-registry/serializer-formatter.html#subject-name-strategy)
+used by Confluent in their Kafka libraries.
+
+* `TopicNameStrategy`, the default, registers the schema based on the Kafka
+  topic name, implicitly requiring that all messages use the same schema.
+
+* `RecordNameStrategy` names the schema using the record type, allowing
+  a single topic to have multiple different types of data or multiple topics
+  to have the same type of data.
+
+  In an Avro schema the "[full name](https://avro.apache.org/docs/1.8.2/spec.html#names)", is
+  a namespace-qualified name for the record, e.g. `com.example.X`. In the schema, it is
+  the `name` field.
+
+* `TopicRecordNameStrategy` names the schema using a combination of topic and record.
+
+With the subject, the producer can call the Schema Registry to get the ID
+matching the Avro schema:
 
 ```elixir
 iex> schema_json = "{\"name\":\"test\",\"type\":\"record\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"},{\"name\":\"field2\",\"type\":\"int\"}]}"
@@ -135,11 +156,6 @@ iex> subject = "test"
 iex> {:ok, ref} = AvroSchema.register_schema(subject, schema_json)
 {:ok, 21}
 ```
-
-The subject is a name which identifies the type of data. Multiple Kafka topics
-may carry the same data, so they have the same subject. It is normally the Avro
-"[full name](https://avro.apache.org/docs/1.8.2/spec.html#names)", e.g.
-`com.example.X`. In an Avro schema, it is the "name" field.
 
 If the schema has already been registered, then the Schema Registry will
 return the current id. If you are registering a new version of the schema, then
