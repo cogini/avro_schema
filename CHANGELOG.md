@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   https://github.com/cogini/avro_schema/pull/16
 - Encode nil values correctly for "null" schema types,
   https://github.com/cogini/avro_schema/pull/8
+### Removed
+- Removed `make_subject/1 and make_subject/2`, the name is too generic for what it does.
 
 ## [0.1.0] - 2019-12-31
 ### Added
