@@ -165,8 +165,9 @@ defmodule AvroSchema do
   @doc """
   Register schema in Confluent Schema Registry.
 
-  The subject is normally the full name from the Avro schema, though you can register
-  things in the Schema Registry under arbitrary names.
+  The subject is a unique name to register the schema, often the full name from the Avro schema.
+  See the [standard strategies](https://docs.confluent.io/current/schema-registry/serializer-formatter.html#subject-name-strategy)
+  used by Confluent in their Kafka libraries.
 
   It is safe to register the same schema multiple times, it will always return
   the same ID.
@@ -394,12 +395,12 @@ defmodule AvroSchema do
     :avro.encode_schema(schema, opts)
   end
 
-  @doc "Make registration subject from name + fingerprint."
-  @spec make_subject({binary, fp}) :: binary
-  def make_subject({name, fp}) when is_binary(fp), do: "#{name}-#{to_hex(fp)}"
+  # @doc "Make registration subject from name + fingerprint."
+  # @spec make_subject({binary, fp}) :: binary
+  # def make_subject({name, fp}) when is_binary(fp), do: "#{name}-#{to_hex(fp)}"
 
-  @spec make_subject(binary, fp) :: binary
-  def make_subject(name, fp) when is_binary(fp), do: make_subject({name, fp})
+  # @spec make_subject(binary, fp) :: binary
+  # def make_subject(name, fp) when is_binary(fp), do: make_subject({name, fp})
 
   @doc "
   Get full name field from schema.
