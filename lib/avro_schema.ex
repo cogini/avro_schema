@@ -686,10 +686,10 @@ defmodule AvroSchema do
   defp process_schema(schema) when is_binary(schema), do: parse_schema(schema)
   defp process_schema(schema), do: {:ok, schema}
 
-  @doc "Register schema"
+  # @doc "Register schema"
   @spec do_register_schema(client, subject, binary | :avro.avro_type()) ::
           {:ok, regid} | {:error, term}
-  def do_register_schema(client, subject, schema) when is_binary(schema) do
+  defp do_register_schema(client, subject, schema) when is_binary(schema) do
     case ConfluentSchemaRegistry.register_schema(client, subject, schema) do
       {:ok, regid} ->
         {:ok, regid}
