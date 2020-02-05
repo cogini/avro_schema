@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2020-02-05
 ### Changed
 - Make `encode/2` return `{:ok, binary} | {:error, term()}` and add new `encode!/2`,
   https://github.com/cogini/avro_schema/pull/6
