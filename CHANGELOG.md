@@ -20,8 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Encode nil values correctly for "null" schema types,
   https://github.com/cogini/avro_schema/pull/8
 - Make `do_register_schema/3` private
-### Removed
-- Removed `make_subject/1 and make_subject/2`, the name is too generic for what it does.
+- Rename `make_subject/1 and make_subject/2 to make_fp_subject/1 and make_fp_subject/2` to make name less generic
 
 ## [0.1.0] - 2019-12-31
 ### Added

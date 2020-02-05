@@ -395,12 +395,12 @@ defmodule AvroSchema do
     :avro.encode_schema(schema, opts)
   end
 
-  # @doc "Make registration subject from name + fingerprint."
-  # @spec make_subject({binary, fp}) :: binary
-  # def make_subject({name, fp}) when is_binary(fp), do: "#{name}-#{to_hex(fp)}"
+  @doc "Make registration subject from name + fingerprint."
+  @spec make_fp_subject({binary, fp}) :: binary
+  def make_fp_subject({name, fp}) when is_binary(fp), do: "#{name}-#{to_hex(fp)}"
 
-  # @spec make_subject(binary, fp) :: binary
-  # def make_subject(name, fp) when is_binary(fp), do: make_subject({name, fp})
+  @spec make_fp_subject(binary, fp) :: binary
+  def make_fp_subject(name, fp) when is_binary(fp), do: make_fp_subject({name, fp})
 
   @doc "
   Get full name field from schema.
@@ -665,7 +665,7 @@ defmodule AvroSchema do
   end
 
   defp do_get_schema(client, {_name, _fp} = ref) do
-    subject = make_subject(ref)
+    subject = make_fp_subject(ref)
     # Fingerprint is unique, so version is always 1
     version = 1
 

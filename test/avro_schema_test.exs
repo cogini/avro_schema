@@ -274,8 +274,8 @@ defmodule AvroSchemaTest do
     fp_hex = AvroSchema.to_hex(fp)
 
     subject = "#{full_name}-#{fp_hex}"
-    assert subject == AvroSchema.make_subject(ref)
-    assert subject == AvroSchema.make_subject(full_name, fp)
+    assert subject == AvroSchema.make_fp_subject(ref)
+    assert subject == AvroSchema.make_fp_subject(full_name, fp)
   end
 
   test "parse_schema", %{schema_json: schema_json} do
