@@ -199,11 +199,23 @@ defmodule AvroSchema do
   @doc """
   Make Avro decoder for schema.
 
-  Creates a function which decodes a Avro encoded binary data to a map. By default,
-  a `:hook` option is provided that will convert all `:null` values to `nil`.
+  Creates a function which decodes a Avro encoded binary data to a map.
+
+  # Options
+
+    * `:keys` - controls how keys in objects are decoded. Possible values are:
+      * `:strings` (default) - decodes keys as binary strings,
+      * `:atoms` - keys are converted to atoms using `String.to_atom/1`,
+      * `:atoms!` - keys are converted to atoms using `String.to_existing_atom/1`,
+    * `:record_type` - Controls what records are decoded into
+      * `:map` (default) - decodes records into maps
+      * `:proplist` (default) - decodes records into [proplists](https://erlang.org/doc/man/proplists.html)
+    * `:map_type` - Controls what maps are decoded into
+      * `:map` (default) - decodes maps into maps
+      * `:proplist` (default) - decodes maps into [proplists](https://erlang.org/doc/man/proplists.html)
   """
   @spec make_decoder(binary | :avro.avro_type(), Keyword.t()) :: {:ok, fun} | {:error, term}
-  def make_decoder(schema, decoder_opts \\ [record_type: :map, map_type: :map])
+  def make_decoder(schema, decoder_opts \\ [])
 
   def make_decoder(schema_json, decoder_opts) when is_binary(schema_json) do
     case parse_schema(schema_json) do
@@ -216,6 +228,9 @@ defmodule AvroSchema do
   end
 
   def make_decoder(schema, decoder_opts) do
+    decoder_opts = Keyword.put_new(decoder_opts, :keys, :strings)
+    decoder_opts = Keyword.put_new(decoder_opts, :record_type, :map)
+    decoder_opts = Keyword.put_new(decoder_opts, :map_type, :map)
     decoder_opts = Keyword.put_new(decoder_opts, :hook, &decoder_hook/4)
     {:ok, :avro.make_simple_decoder(schema, decoder_opts)}
   end
@@ -226,7 +241,7 @@ defmodule AvroSchema do
   Convenience function, calls `get_schema/1` on the id, then `make_decoder/2`.
   """
   @spec get_decoder(ref | {:confluent, regid}, Keyword.t()) :: {:ok, fun} | {:error, term}
-  def get_decoder(ref, decoder_opts \\ [record_type: :map, map_type: :map])
+  def get_decoder(ref, decoder_opts \\ [])
   def get_decoder({:confluent, regid}, decoder_opts), do: get_decoder(regid, decoder_opts)
 
   def get_decoder(ref, decoder_opts) do
@@ -239,7 +254,10 @@ defmodule AvroSchema do
     end
   end
 
-  defp decoder_hook(type, _sub_info, data, decode_fn) do
+  defp decoder_hook(type, sub_info, data, decode_fn) do
+    IO.inspect type, label: "type"
+    IO.inspect sub_info, label: "sub_info"
+    IO.inspect data, label: "data"
     case :avro.get_type_name(type) do
       "null" -> {nil, data}
       _ -> decode_fn.(data)

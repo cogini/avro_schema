@@ -202,13 +202,13 @@ defmodule AvroSchemaTest do
   describe "decode!/2" do
     test "returns data for successful decodings", %{schema_json: schema_json} do
       {:ok, encoder} = AvroSchema.make_encoder(schema_json)
-      {:ok, decoder} = AvroSchema.make_decoder(schema_json)
+      {:ok, decoder} = AvroSchema.make_decoder(schema_json, keys: :atoms)
 
       data_atom_keys = %{field1: "hello", field2: 21}
       encoded = AvroSchema.encode!(data_atom_keys, encoder)
 
       data = AvroSchema.decode!(encoded, decoder)
-      assert data == %{"field1" => "hello", "field2" => 21}
+      assert data == %{field1: "hello", field2: 21}
     end
 
     test "raises for unsuccessful decodings", %{schema_json: schema_json} do
@@ -222,6 +222,10 @@ defmodule AvroSchemaTest do
       assert_raise MatchError, fn ->
         AvroSchema.decode!(encoded, decoder)
       end
+    end
+
+    test "when keys: :atoms is passed, it converts keys to atoms" do
+
     end
   end
 
