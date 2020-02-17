@@ -267,6 +267,15 @@ defmodule AvroSchemaTest do
     assert is_list(encoded)
   end
 
+  test "atom values are encoded as strings for string types", %{schema_json: schema_json} do
+    {:ok, encoder} = AvroSchema.make_encoder(schema_json)
+
+    atom_value = %{field1: :some_atom, field2: 2}
+
+    {:ok, encoded} = AvroSchema.encode(atom_value, encoder)
+    assert is_list(encoded)
+  end
+
   test "subject", %{schema_json: schema_json} do
     full_name = AvroSchema.full_name(schema_json)
     fp = AvroSchema.fingerprint_schema(schema_json)
