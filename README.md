@@ -359,3 +359,9 @@ iex> timestamp = AvroSchema.to_timestamp(datetime)
 iex> datetime = AvroSchema.to_datetime(timestamp)
 ~U[2019-11-08 09:09:01.055742Z]
 ```
+
+# Contacts
+
+I am `jakemorrison` on on the Elixir Slack and Discord, `reachfh` on
+Freenode `#elixir-lang` IRC channel. Happy to chat or help with
+your projects.
