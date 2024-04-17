@@ -53,6 +53,7 @@ defmodule AvroSchema.MixProject do
 
   defp deps do
     [
+      {:castore, "~> 1.0", only: [:dev, :test], runtime: false},
       # {:confluent_schema_registry, github: "cogini/confluent_schema_registry"},
       {:confluent_schema_registry, "~> 0.1"},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
