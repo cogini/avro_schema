@@ -299,11 +299,9 @@ defmodule AvroSchema do
   @doc "Decode binary Avro data."
   @spec decode(binary, fun) :: {:ok, decoded()} | {:error, term()}
   def decode(bin, decoder) do
-    try do
-      {:ok, decoder.(bin)}
-    rescue
-      error -> {:error, error}
-    end
+    {:ok, decoder.(bin)}
+  rescue
+    error -> {:error, error}
   end
 
   @doc "Decode binary Avro data, raises if there is a decoding error"
@@ -315,11 +313,9 @@ defmodule AvroSchema do
   @doc "Encode Avro data to binary."
   @spec encode(map | [{binary, term}], fun) :: {:ok, binary} | {:error, term()}
   def encode(data, encoder) do
-    try do
-      {:ok, encoder.(data)}
-    rescue
-      error -> {:error, error}
-    end
+    {:ok, encoder.(data)}
+  rescue
+    error -> {:error, error}
   end
 
   @doc "Encode Avro data to binary, raises if there is an encoding error"
@@ -567,7 +563,7 @@ defmodule AvroSchema do
 
   @doc "Stop cache GenServer"
   @spec stop() :: :ok
-  def stop() do
+  def stop do
     GenServer.call(__MODULE__, :stop)
   end
 
@@ -705,17 +701,15 @@ defmodule AvroSchema do
   # Look up value in cache by key
   @spec cache_lookup(term) :: term | nil
   def cache_lookup(key) do
-    try do
-      case :ets.lookup(@ets_table, key) do
-        [{^key, value}] -> value
-        [] -> nil
-      end
-    catch
-      # This may fail if clients make calls before the table is created
-      :error, :badarg ->
-        Logger.error("badarg")
-        nil
+    case :ets.lookup(@ets_table, key) do
+      [{^key, value}] -> value
+      [] -> nil
     end
+  catch
+    # This may fail if clients make calls before the table is created
+    :error, :badarg ->
+      Logger.error("badarg")
+      nil
   end
 
   # Run function and cache results if successful
@@ -764,45 +758,31 @@ defmodule AvroSchema do
   # Put value in ETS cache
   @spec ets_insert(cache_value()) :: :ok | :error
   defp ets_insert(objects) do
-    # Logger.debug("ETS insert #{inspect key} = #{inspect value}")
-    # Logger.debug("ETS insert #{inspect key}")
-
-    try do
-      :ets.insert(@ets_table, objects)
-      :ok
-    catch
-      # This may fail if clients make calls before the table is created
-      :error, :badarg ->
-        :error
-    end
+    :ets.insert(@ets_table, objects)
+    :ok
+  catch
+    # This may fail if clients make calls before the table is created
+    :error, :badarg ->
+      :error
   end
 
   # Put value in DETS cache
   @spec dets_insert(cache_value()) :: :ok | :error
   defp dets_insert(objects) do
-    # Logger.debug("DETS insert #{inspect key} = #{inspect value}")
-    # Logger.debug("DETS insert #{inspect key}")
+    # DETS insert succeeds even if there is no table open :-/
+    case :dets.insert(@dets_table, objects) do
+      :ok ->
+        :ok
 
-    try do
-      # DETS insert succeeds even if there is no table open :-/
-      case :dets.insert(@dets_table, objects) do
-        :ok ->
-          :ok
+      {:error, reason} ->
+        Logger.warning("Could not insert into DETS table #{@dets_table} #{inspect(reason)} #{inspect(objects)}")
 
-        {:error, reason} ->
-          Logger.warn(
-            "Could not insert into DETS table #{@dets_table} #{inspect(reason)} #{
-              inspect(objects)
-            }"
-          )
-
-          :error
-      end
-    catch
-      :error, :badarg ->
-        Logger.warn("Could not insert into DETS table #{@dets_table} badarg #{inspect(objects)}")
         :error
     end
+  catch
+    :error, :badarg ->
+      Logger.warning("Could not insert into DETS table #{@dets_table} badarg #{inspect(objects)}")
+      :error
   end
 
   @doc false
