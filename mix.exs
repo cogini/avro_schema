@@ -2,7 +2,7 @@ defmodule AvroSchema.MixProject do
   use Mix.Project
 
   @github "https://github.com/cogini/avro_schema"
-  @version "0.3.0"
+  @version "0.4.0"
 
   def project do
     [
