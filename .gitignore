@@ -22,3 +22,8 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 avro_schema-*.tar
 
+# Temporary files, for example, from tests.
+/tmp/
+
+# macOS junk
+.DS_Store
