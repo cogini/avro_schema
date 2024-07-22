@@ -54,7 +54,7 @@ def start(_type, _args) do
     {AvroSchema, [cache_dir: cache_dir]},
   ]
 
-  opts = [strategy: :one_for_one, name: LogElasticsearch.Supervisor]
+  opts = [strategy: :one_for_one, name: Example.Supervisor]
   Supervisor.start_link(children, opts)
 end
 ```
@@ -108,11 +108,11 @@ Consumers look up the id to get the schema.
 
 The Schema Registry also does validation on new schemas to ensure that they
 meet a backwards compatibility policy for the organization.
-This helps you to [evolve schemas](https://docs.confluent.io/current/schema-registry/avro.html)
+This helps to [evolve schemas](https://docs.confluent.io/current/schema-registry/avro.html)
 over time and deploy them without breaking running applications.
 
 The disadvantage of the Schema Registry is that it can be a single point
-of failure. Different schema registries will in general assign a different
+of failure. Different schema registries will, in general, assign a different
 numeric id to the same schema.
 
 This library provides functions to register schemas with the Schema Registry
