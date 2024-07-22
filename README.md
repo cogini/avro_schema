@@ -1,11 +1,14 @@
 ![test workflow](https://github.com/cogini/avro_schema/actions/workflows/test.yml/badge.svg)
+[![Module Version](https://img.shields.io/hexpm/v/avro_schema.svg)](https://hex.pm/packages/avro_schema)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/avro_schema/)
+[![Total Download](https://img.shields.io/hexpm/dt/avro_schema.svg)](https://hex.pm/packages/avro_schema)
+[![License](https://img.shields.io/hexpm/l/avro_schema.svg)](https://github.com/cogini/avro_schema/blob/master/LICENSE.md)
+[![Last Updated](https://img.shields.io/github/last-commit/cogini/avro_schema.svg)](https://github.com/cogini/avro_schema/commits/master)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
 
 # AvroSchema
 
 ---
-
-[![CircleCI](https://circleci.com/gh/cogini/avro_schema.svg?style=svg)](https://app.circleci.com/github/cogini/avro_schema/pipelines)
 
 This is a library for working with [Avro](https://avro.apache.org/)
 schemas and the [Confluent® Schema Registry](https://www.confluent.io/confluent-schema-registry),
@@ -30,11 +33,11 @@ Add the package to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
-  [{:avro_schema, "~> 0.1.0"}]
+  [
+    {:avro_schema, "~> 0.1.0"}
+  ]
 end
 ```
-
-Then run `mix deps.get` to fetch the new dependency.
 
 Documentation is on [HexDocs](https://hexdocs.pm/avro_schema).
 To generate a local copy, run `mix docs`.
@@ -364,6 +367,5 @@ iex> datetime = AvroSchema.to_datetime(timestamp)
 
 # Contacts
 
-I am `jakemorrison` on on the Elixir Slack and Discord, `reachfh` on
-Freenode `#elixir-lang` IRC channel. Happy to chat or help with
-your projects.
+I am `jakemorrison` on on the Elixir Slack and Discord, `reachfh` on Freenode
+`#elixir-lang` IRC channel. Happy to chat or help with your projects.
